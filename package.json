@@ -1,12 +1,39 @@
 {
-  "name": "mailing-create",
+  "name": "misiva",
+  "productName": "Misiva",
   "version": "0.1.0",
+  "description": "Editor visual de código abierto para crear correos HTML compatibles con Gmail, Outlook, Apple Mail y cualquier plataforma de envío.",
+  "keywords": [
+    "email",
+    "html-email",
+    "email-builder",
+    "newsletter",
+    "mailing",
+    "email-template",
+    "outlook",
+    "gmail",
+    "electron",
+    "nextjs"
+  ],
+  "license": "MIT",
+  "author": "Leonardo Ramírez",
   "private": true,
+  "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:build": "next build && node scripts/prepare-standalone.mjs",
+    "electron:start": "npm run electron:build && electron .",
+    "dist": "npm run electron:build && electron-builder",
+    "dist:linux": "npm run electron:build && electron-builder --linux",
+    "dist:win": "npm run electron:build && electron-builder --win",
+    "dist:mac": "npm run electron:build && electron-builder --mac"
   },
   "dependencies": {
     "next": "16.4.6",
@@ -18,9 +45,53 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "app.misiva.desktop",
+    "productName": "Misiva",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "asar": true,
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "synopsis": "Editor visual de correos HTML",
+      "description": "Editor visual de código abierto para crear correos HTML compatibles con Gmail, Outlook, Apple Mail y cualquier plataforma de envío."
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
+    },
+    "afterPack": "scripts/after-pack.cjs",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }

@@ -1,0 +1,42 @@
+name: Reportar un error
+description: Algo no funciona como debería
+labels: ["error"]
+body:
+  - type: textarea
+    id: que-paso
+    attributes:
+      label: ¿Qué pasó?
+      description: Describa el error y qué esperaba que pasara.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Agregar un bloque de columnas
+        2. Exportar para Mailchimp
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: version
+    attributes:
+      label: ¿Dónde lo usa?
+      options:
+        - Versión web
+        - Escritorio — Linux
+        - Escritorio — Windows
+        - Escritorio — macOS
+    validations:
+      required: true
+  - type: input
+    id: cliente
+    attributes:
+      label: Cliente de correo afectado (si aplica)
+      placeholder: Outlook 2019 Windows, Gmail app Android, Apple Mail iOS 18…
+  - type: textarea
+    id: extra
+    attributes:
+      label: Capturas, HTML exportado o proyecto .json
+      description: Adjunte lo que ayude a reproducirlo. No incluya datos personales reales.

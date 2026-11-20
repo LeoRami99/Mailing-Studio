@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Identidad de Misiva: "tinta" (violeta) como color principal y "lacre" (coral) como acento. */
+@theme {
+  --color-brand-50: #f3f0ff;
+  --color-brand-100: #e7e0ff;
+  --color-brand-200: #cfc2ff;
+  --color-brand-300: #ae97ff;
+  --color-brand-400: #8f6dff;
+  --color-brand-500: #7c5cff;
+  --color-brand-600: #5b3df5;
+  --color-brand-700: #4527d6;
+  --color-brand-800: #3820ad;
+  --color-brand-900: #1e1b4b;
+  --color-lacre: #ff6b4a;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* El lienzo imita un cliente de correo: deshace parte del reset de Tailwind. */
+.email-canvas ul { list-style: disc; }
+.email-canvas ol { list-style: decimal; }
+.email-canvas table { border-collapse: collapse; }
+.email-canvas h1, .email-canvas h2, .email-canvas h3 { font-size: revert; }
+.email-canvas a { pointer-events: none; }
+
+/* Simulación de modo oscuro en el lienzo */
+.email-canvas-dark .dm-text,
+.email-canvas-dark .dm-text p,
+.email-canvas-dark .dm-text li,
+.email-canvas-dark .dm-text span:not(.var-chip) { color: var(--dm-text) !important; }
+.email-canvas-dark .dm-text a, .email-canvas-dark .dm-link { color: var(--dm-link) !important; }
+
+/* Variables resaltadas en el lienzo */
+.var-chip {
+  background: rgba(91, 61, 245, 0.12);
+  border-bottom: 1px dashed rgba(91, 61, 245, 0.7);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Editor de texto enriquecido */
+.rich-editor ul { list-style: disc; padding-left: 1.5rem; }
+.rich-editor ol { list-style: decimal; padding-left: 1.5rem; }
+.rich-editor p { margin: 0 0 0.5rem; }
+.rich-editor a { color: #5b3df5; text-decoration: underline; }

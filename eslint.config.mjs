@@ -12,7 +12,13 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "dist-electron/**",
   ]),
+  // El proceso principal de Electron y los hooks de empaquetado son CommonJS.
+  {
+    files: ["electron/**/*.cjs", "scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

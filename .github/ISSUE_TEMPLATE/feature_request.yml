@@ -1,0 +1,17 @@
+name: Proponer una mejora
+description: Una idea para Misiva
+labels: ["mejora"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: ¿Qué problema resolvería?
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Propuesta
+      description: Cómo se imagina la solución. Si es una plataforma de envío, enlace su documentación.
+    validations:
+      required: true
