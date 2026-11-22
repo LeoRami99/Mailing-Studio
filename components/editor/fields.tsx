@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { LuAlignCenter, LuAlignLeft, LuAlignRight, LuChevronRight, LuX } from "react-icons/lu";
 import type { Align, Padding } from "@/lib/email/types";
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -14,7 +15,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export const inputCls =
-  "w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20";
+  "w-full rounded-[10px] border border-zinc-200/90 bg-white/85 px-2.5 py-2 text-sm text-zinc-900 shadow-[0_1px_1px_rgba(24,24,27,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] outline-none transition focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-500/10";
 
 export function TextInput({ label, value, onChange, placeholder, hint, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; hint?: string; type?: string }) {
   return (
@@ -80,7 +81,7 @@ export function ColorInput({ label, value, onChange, allowEmpty }: { label: stri
         <input className={`${inputCls} font-mono`} value={value} placeholder={allowEmpty ? "transparente" : "#000000"} onChange={(e) => onChange(e.target.value.trim())} />
         {allowEmpty && value && (
           <button type="button" className="text-xs text-zinc-400 hover:text-red-500" title="Quitar color" onClick={() => onChange("")}>
-            ✕
+            <LuX aria-hidden />
           </button>
         )}
       </div>
@@ -127,10 +128,10 @@ export function Toggle({ label, checked, onChange, hint }: { label: string; chec
 }
 
 export function AlignInput({ label = "Alineación", value, onChange }: { label?: string; value: Align; onChange: (v: Align) => void }) {
-  const opts: { v: Align; icon: string; t: string }[] = [
-    { v: "left", icon: "⇤", t: "Izquierda" },
-    { v: "center", icon: "↔", t: "Centro" },
-    { v: "right", icon: "⇥", t: "Derecha" },
+  const opts = [
+    { v: "left" as const, Icon: LuAlignLeft, t: "Izquierda" },
+    { v: "center" as const, Icon: LuAlignCenter, t: "Centro" },
+    { v: "right" as const, Icon: LuAlignRight, t: "Derecha" },
   ];
   return (
     <Field label={label}>
@@ -143,7 +144,7 @@ export function AlignInput({ label = "Alineación", value, onChange }: { label?:
             className={`flex-1 py-1 text-sm ${value === o.v ? "bg-brand-600 text-white" : "bg-white text-zinc-700 hover:bg-zinc-100"}`}
             onClick={() => onChange(o.v)}
           >
-            {o.icon}
+            <o.Icon className="mx-auto h-4 w-4" aria-hidden />
           </button>
         ))}
       </div>
@@ -169,10 +170,10 @@ export function PaddingInput({ value, onChange }: { value: Padding; onChange: (v
 
 export function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
-    <details open={defaultOpen} className="group border-b border-zinc-200">
-      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 hover:bg-zinc-50">
+    <details open={defaultOpen} className="group border-b border-zinc-200/70">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100/70 hover:text-zinc-900">
         {title}
-        <span className="transition group-open:rotate-90">›</span>
+        <LuChevronRight className="transition group-open:rotate-90" aria-hidden />
       </summary>
       <div className="flex flex-col gap-3 px-4 pb-4">{children}</div>
     </details>
@@ -181,30 +182,80 @@ export function Section({ title, children, defaultOpen = true }: { title: string
 
 export function Btn({ children, onClick, variant = "default", title, disabled, className = "" }: { children: ReactNode; onClick?: () => void; variant?: "default" | "primary" | "ghost" | "danger"; title?: string; disabled?: boolean; className?: string }) {
   const v = {
-    default: "border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50",
-    primary: "bg-brand-600 text-white hover:bg-brand-700",
-    ghost: "text-zinc-600 hover:bg-zinc-100",
-    danger: "border border-red-200 bg-white text-red-600 hover:bg-red-50",
+    default: "border border-zinc-200/90 bg-white/90 text-zinc-800 shadow-[0_1px_2px_rgba(24,24,27,0.06),inset_0_1px_0_white] hover:-translate-y-px hover:border-zinc-300 hover:bg-white hover:shadow-[0_4px_12px_rgba(24,24,27,0.08)]",
+    primary: "border border-brand-500/70 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_5px_14px_rgba(0,143,85,0.24)] hover:-translate-y-px hover:from-brand-500 hover:to-brand-700 hover:shadow-[0_8px_20px_rgba(0,143,85,0.28)]",
+    ghost: "border border-transparent text-zinc-600 hover:border-white/70 hover:bg-white/65 hover:text-zinc-900 hover:shadow-[0_2px_10px_rgba(24,24,27,0.05)]",
+    danger: "border border-red-200/90 bg-white/90 text-red-600 shadow-sm hover:-translate-y-px hover:bg-red-50",
   }[variant];
   return (
-    <button type="button" title={title} disabled={disabled} onClick={onClick} className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${v} ${className}`}>
+    <button type="button" title={title} disabled={disabled} onClick={onClick} className={`inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm font-medium transition duration-200 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-40 ${v} ${className}`}>
       {children}
     </button>
   );
 }
 
 export function Modal({ title, onClose, children, wide, footer }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
+
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+      previous?.focus();
+    };
+  }, []);
+
+  const trapFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl ${wide ? "max-w-6xl" : "max-w-2xl"}`}>
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
-          <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
-          <button type="button" className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={onClose} aria-label="Cerrar">
-            ✕
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-2.5 backdrop-blur-[7px] sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={trapFocus}
+        className={`glass-dialog flex max-h-[calc(100dvh-1.25rem)] w-full flex-col overflow-hidden rounded-[18px] outline-none sm:max-h-[calc(100dvh-3rem)] sm:rounded-[22px] ${wide ? "max-w-6xl" : "max-w-2xl"}`}
+      >
+        <div className="relative z-20 flex shrink-0 items-center justify-between border-b border-zinc-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl sm:px-5 sm:py-3.5">
+          <h2 id={titleId} className="min-w-0 truncate pr-4 text-base font-semibold tracking-[-0.01em] text-zinc-900">{title}</h2>
+          <button type="button" className="rounded-lg border border-transparent p-1.5 text-zinc-400 transition hover:border-white hover:bg-white/75 hover:text-zinc-800 hover:shadow-sm" onClick={onClose} aria-label="Cerrar">
+            <LuX aria-hidden />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-zinc-200 px-5 py-3">{footer}</div>}
+        <div className="soft-scrollbar relative z-10 min-h-0 flex-1 overflow-auto bg-white/45">{children}</div>
+        {footer && <div className="relative z-20 flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-zinc-200/70 bg-white/78 px-4 py-3 backdrop-blur-xl sm:px-5">{footer}</div>}
       </div>
     </div>
   );

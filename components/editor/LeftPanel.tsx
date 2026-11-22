@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { LuBlocks, LuImages, LuPalette, LuVariable } from "react-icons/lu";
 import type { BlockType, EmailSettings, Variable } from "@/lib/email/types";
 import { BLOCK_LABELS, createBlock, FONT_STACKS } from "@/lib/email/defaults";
 import { PLATFORMS } from "@/lib/email/platforms";
@@ -8,16 +9,17 @@ import { locate, type EmailStore } from "@/lib/email/store";
 import { startNewBlockDrag } from "./Canvas";
 import { ColorInput, NumberInput, Section, Select, Slider, TextArea, TextInput, Toggle, Btn, inputCls } from "./fields";
 import { ImageLibrary } from "./ImagePicker";
+import { BlockIcon } from "./BlockIcon";
 
 type Tab = "blocks" | "design" | "vars" | "images";
 
 export function LeftPanel({ store, selectedId, onSelect }: { store: EmailStore; selectedId: string | null; onSelect: (id: string) => void }) {
   const [tab, setTab] = useState<Tab>("blocks");
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "blocks", label: "Bloques" },
-    { id: "design", label: "Diseño" },
-    { id: "vars", label: "Variables" },
-    { id: "images", label: "Imágenes" },
+  const tabs = [
+    { id: "blocks" as const, label: "Bloques", Icon: LuBlocks },
+    { id: "design" as const, label: "Diseño", Icon: LuPalette },
+    { id: "vars" as const, label: "Variables", Icon: LuVariable },
+    { id: "images" as const, label: "Imágenes", Icon: LuImages },
   ];
 
   /** Agrega un bloque después del seleccionado (o al final). */
@@ -39,19 +41,25 @@ export function LeftPanel({ store, selectedId, onSelect }: { store: EmailStore; 
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex border-b border-zinc-200">
-        {tabs.map((t) => (
+      <div className="relative z-30 m-2 grid grid-cols-4 gap-1 rounded-xl bg-zinc-100/90 p-1 shadow-[inset_0_1px_3px_rgba(24,24,27,0.06)]">
+        {tabs.map(({ id, label, Icon }) => (
           <button
-            key={t.id}
+            key={id}
             type="button"
-            className={`flex-1 border-b-2 px-2 py-2.5 text-xs font-semibold ${tab === t.id ? "border-brand-600 text-brand-700" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
-            onClick={() => setTab(t.id)}
+            aria-label={label}
+            aria-pressed={tab === id}
+            className={`group relative flex min-w-0 items-center justify-center rounded-lg px-1 py-2 transition ${tab === id ? "bg-white text-brand-700 shadow-[0_2px_8px_rgba(24,24,27,0.09)]" : "text-zinc-500 hover:bg-white/55 hover:text-zinc-800"}`}
+            onClick={() => setTab(id)}
           >
-            {t.label}
+            <Icon className="h-[18px] w-[18px]" aria-hidden />
+            <span className="pointer-events-none absolute left-1/2 top-full mt-2 flex -translate-x-1/2 -translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg border border-white/80 bg-zinc-900/92 px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-[0_8px_20px_rgba(24,24,27,0.2)] backdrop-blur-lg transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+              <Icon className="h-3.5 w-3.5 text-brand-300" aria-hidden />
+              {label}
+            </span>
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
         {tab === "blocks" && <BlocksTab onAdd={addBlock} codeMode={store.doc.mode === "code"} />}
         {tab === "design" && <DesignTab store={store} />}
         {tab === "vars" && <VariablesTab store={store} />}
@@ -61,6 +69,9 @@ export function LeftPanel({ store, selectedId, onSelect }: { store: EmailStore; 
             <ImageLibrary onPick={(url) => addBlock("image", { src: url, alt: "" })} />
           </div>
         )}
+      </div>
+      <div className="shrink-0 border-t border-zinc-200 px-3 py-2 text-center text-[10px] leading-4 text-zinc-400">
+        Desarrollado con Claude y Codex por <span className="font-semibold text-zinc-500">Zegiru Labs</span>
       </div>
     </div>
   );
@@ -82,9 +93,9 @@ function BlocksTab({ onAdd, codeMode }: { onAdd: (t: BlockType) => void; codeMod
             onDragStart={(e) => startNewBlockDrag(e, t)}
             onClick={() => onAdd(t)}
             title={BLOCK_LABELS[t].hint}
-            className="flex cursor-grab flex-col items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-3 text-xs text-zinc-700 shadow-sm transition hover:border-brand-400 hover:text-brand-700 hover:shadow active:cursor-grabbing"
+            className="group flex cursor-grab flex-col items-center gap-1.5 rounded-xl border border-white bg-gradient-to-b from-white to-zinc-50/80 px-2 py-3 text-xs font-medium text-zinc-700 shadow-[0_2px_8px_rgba(6,32,21,0.07),inset_0_1px_0_white] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:text-brand-700 hover:shadow-[0_8px_18px_rgba(0,111,69,0.12)] active:translate-y-0 active:cursor-grabbing"
           >
-            <span className="font-mono text-lg leading-none text-zinc-500">{BLOCK_LABELS[t].icon}</span>
+            <BlockIcon type={t} className="h-5 w-5 text-zinc-500 transition-colors group-hover:text-brand-600" />
             {BLOCK_LABELS[t].label}
           </button>
         ))}
@@ -110,7 +121,7 @@ function DesignTab({ store }: { store: EmailStore }) {
         <TextInput label="Título del documento" value={s.title} onChange={set("title")} />
         <div className="grid grid-cols-2 gap-2">
           <TextInput label="Idioma" value={s.lang} onChange={set("lang")} />
-          <Select label="Dirección" value={s.dir} onChange={set("dir")} options={[{ label: "Izq. → der.", value: "ltr" }, { label: "Der. → izq.", value: "rtl" }]} />
+          <Select label="Dirección" value={s.dir} onChange={set("dir")} options={[{ label: "Izquierda a derecha", value: "ltr" }, { label: "Derecha a izquierda", value: "rtl" }]} />
         </div>
       </Section>
       <Section title="Diseño general">

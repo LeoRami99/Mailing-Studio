@@ -1,6 +1,8 @@
 import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { requireRequestUser, trustedMutation } from "@/lib/server/auth";
+import { databaseEnabled, query } from "@/lib/server/db";
 
 // Almacena imágenes subidas en ./storage/uploads y las sirve en /media/<archivo>.
 // En producción puede reemplazarse por S3, Cloudinary u otro CDN público:
@@ -17,6 +19,9 @@ const ALLOWED: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
+  if (!trustedMutation(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  const auth = await requireRequestUser(request);
+  if ("response" in auth) return auth.response;
   const form = await request.formData();
   const files = form.getAll("file").filter((f): f is File => f instanceof File);
   if (!files.length) return Response.json({ error: "No se recibió ningún archivo." }, { status: 400 });
@@ -36,14 +41,19 @@ export async function POST(request: Request) {
       .toLowerCase();
     const name = `${base || "imagen"}-${randomUUID().slice(0, 8)}.${ext}`;
     await writeFile(path.join(UPLOAD_DIR, name), Buffer.from(await file.arrayBuffer()));
+    if (databaseEnabled()) await query("INSERT INTO upload_assets (user_id, name, size_bytes, media_type) VALUES ($1, $2, $3, $4)", [auth.user.id, name, file.size, file.type]);
     saved.push({ name, url: `/media/${name}`, size: file.size });
   }
   return Response.json({ files: saved });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireRequestUser(request);
+  if ("response" in auth) return auth.response;
   await mkdir(UPLOAD_DIR, { recursive: true });
-  const names = await readdir(UPLOAD_DIR);
+  const names = databaseEnabled()
+    ? (await query<{ name: string }>("SELECT name FROM upload_assets WHERE user_id = $1 ORDER BY created_at DESC", [auth.user.id])).rows.map((row) => row.name)
+    : await readdir(UPLOAD_DIR);
   const files = await Promise.all(
     names
       .filter((n) => /\.(png|jpe?g|gif|webp)$/i.test(n))
@@ -57,8 +67,15 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
+  if (!trustedMutation(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  const auth = await requireRequestUser(request);
+  if ("response" in auth) return auth.response;
   const { name } = (await request.json()) as { name?: string };
   if (!name || name !== path.basename(name)) return Response.json({ error: "Nombre inválido." }, { status: 400 });
+  if (databaseEnabled()) {
+    const removed = await query("DELETE FROM upload_assets WHERE user_id = $1 AND name = $2", [auth.user.id, name]);
+    if (removed.rowCount !== 1) return Response.json({ error: "No encontrado." }, { status: 404 });
+  }
   await unlink(path.join(UPLOAD_DIR, name)).catch(() => {});
   return Response.json({ ok: true });
 }

@@ -1,6 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  LuBold,
+  LuCodeXml,
+  LuEraser,
+  LuItalic,
+  LuLink2,
+  LuList,
+  LuListOrdered,
+  LuPalette,
+  LuStrikethrough,
+  LuType,
+  LuUnderline,
+  LuUnlink,
+  LuX,
+} from "react-icons/lu";
 import type { Variable } from "@/lib/email/types";
 
 /**
@@ -80,28 +95,28 @@ export function RichText({
     emit();
   };
 
-  const tb = "rounded px-1.5 py-0.5 text-xs text-zinc-700 hover:bg-zinc-200";
+  const tb = "inline-flex h-7 w-7 items-center justify-center rounded text-sm text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900";
 
   return (
     <div className="overflow-hidden rounded-md border border-zinc-300 bg-white focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
       <div className="flex flex-wrap items-center gap-0.5 border-b border-zinc-200 bg-zinc-50 px-1 py-1">
-        <button type="button" className={`${tb} font-bold`} title="Negrita" onMouseDown={(e) => { e.preventDefault(); cmd("bold"); }}>B</button>
-        <button type="button" className={`${tb} italic`} title="Cursiva" onMouseDown={(e) => { e.preventDefault(); cmd("italic"); }}>I</button>
-        <button type="button" className={`${tb} underline`} title="Subrayado" onMouseDown={(e) => { e.preventDefault(); cmd("underline"); }}>U</button>
-        <button type="button" className={`${tb} line-through`} title="Tachado" onMouseDown={(e) => { e.preventDefault(); cmd("strikeThrough"); }}>S</button>
-        <button type="button" className={tb} title="Enlace" onMouseDown={(e) => { e.preventDefault(); link(); }}>🔗</button>
-        <button type="button" className={tb} title="Quitar enlace" onMouseDown={(e) => { e.preventDefault(); cmd("unlink"); }}>⛓︎̸</button>
+        <button type="button" className={tb} title="Negrita" onMouseDown={(e) => { e.preventDefault(); cmd("bold"); }}><LuBold aria-hidden /></button>
+        <button type="button" className={tb} title="Cursiva" onMouseDown={(e) => { e.preventDefault(); cmd("italic"); }}><LuItalic aria-hidden /></button>
+        <button type="button" className={tb} title="Subrayado" onMouseDown={(e) => { e.preventDefault(); cmd("underline"); }}><LuUnderline aria-hidden /></button>
+        <button type="button" className={tb} title="Tachado" onMouseDown={(e) => { e.preventDefault(); cmd("strikeThrough"); }}><LuStrikethrough aria-hidden /></button>
+        <button type="button" className={tb} title="Enlace" onMouseDown={(e) => { e.preventDefault(); link(); }}><LuLink2 aria-hidden /></button>
+        <button type="button" className={tb} title="Quitar enlace" onMouseDown={(e) => { e.preventDefault(); cmd("unlink"); }}><LuUnlink aria-hidden /></button>
         {!singleLine && (
           <>
-            <button type="button" className={tb} title="Lista con viñetas" onMouseDown={(e) => { e.preventDefault(); cmd("insertUnorderedList"); }}>• —</button>
-            <button type="button" className={tb} title="Lista numerada" onMouseDown={(e) => { e.preventDefault(); cmd("insertOrderedList"); }}>1.</button>
+            <button type="button" className={tb} title="Lista con viñetas" onMouseDown={(e) => { e.preventDefault(); cmd("insertUnorderedList"); }}><LuList aria-hidden /></button>
+            <button type="button" className={tb} title="Lista numerada" onMouseDown={(e) => { e.preventDefault(); cmd("insertOrderedList"); }}><LuListOrdered aria-hidden /></button>
           </>
         )}
         <label className={`${tb} relative cursor-pointer`} title="Color del texto seleccionado">
-          A<span className="ml-0.5 inline-block h-2 w-2 rounded-sm bg-gradient-to-r from-red-500 via-green-500 to-brand-500" />
+          <LuPalette aria-hidden />
           <input type="color" className="absolute inset-0 cursor-pointer opacity-0" onChange={(e) => cmd("foreColor", e.target.value)} />
         </label>
-        <button type="button" className={tb} title="Quitar formato" onMouseDown={(e) => { e.preventDefault(); cmd("removeFormat"); }}>⌫</button>
+        <button type="button" className={tb} title="Quitar formato" onMouseDown={(e) => { e.preventDefault(); cmd("removeFormat"); }}><LuEraser aria-hidden /></button>
         <select
           className="ml-1 rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs text-zinc-700"
           value=""
@@ -121,8 +136,8 @@ export function RichText({
           <option value={'{{@unsubscribe}}'}>URL de baja</option>
           <option value={'{{@webversion}}'}>URL versión web</option>
         </select>
-        <button type="button" className={`${tb} ml-auto font-mono`} title="Ver/editar HTML" onClick={() => setShowSource((s) => !s)}>
-          {showSource ? "Visual" : "</>"}
+        <button type="button" className={`${tb} ml-auto`} title={showSource ? "Volver al editor visual" : "Ver o editar HTML"} onClick={() => setShowSource((s) => !s)}>
+          {showSource ? <LuType aria-hidden /> : <LuCodeXml aria-hidden />}
         </button>
       </div>
       {linkUrl !== null && (
@@ -141,7 +156,7 @@ export function RichText({
             }}
           />
           <button type="button" className="rounded bg-brand-600 px-2 py-1 text-xs text-white" onClick={applyLink}>Aplicar</button>
-          <button type="button" className="px-1 text-xs text-zinc-500" onClick={() => setLinkUrl(null)}>✕</button>
+          <button type="button" className="rounded p-1 text-zinc-500 hover:bg-white" title="Cancelar" onClick={() => setLinkUrl(null)}><LuX aria-hidden /></button>
         </div>
       )}
       {showSource ? (

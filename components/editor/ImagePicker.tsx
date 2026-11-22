@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LuImagePlus, LuTrash2, LuUpload } from "react-icons/lu";
 import { Btn, inputCls, Modal } from "./fields";
 
 export interface UploadedFile {
@@ -84,7 +85,7 @@ export function ImageLibrary({ onPick, selected }: { onPick: (url: string) => vo
           if (e.dataTransfer.files.length) doUpload(e.dataTransfer.files);
         }}
       >
-        <span className="text-2xl">⬆</span>
+        <LuUpload className="mb-1 h-7 w-7 text-brand-500" aria-hidden />
         <span className="font-medium text-zinc-700">{busy ? "Subiendo…" : "Arrastre imágenes aquí o haga clic"}</span>
         <span className="text-xs text-zinc-400">PNG, JPG, GIF o WebP · máx. 5 MB · se recomienda &lt; 200 KB</span>
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => e.target.files && doUpload(e.target.files)} />
@@ -100,8 +101,8 @@ export function ImageLibrary({ onPick, selected }: { onPick: (url: string) => vo
               <img src={f.url} alt={f.name} className="h-full w-full object-contain" />
             </button>
             <span className={`absolute bottom-0 left-0 right-0 bg-black/60 px-1 text-[10px] ${f.size > 200 * 1024 ? "text-amber-300" : "text-white"}`}>{(f.size / 1024).toFixed(0)} KB</span>
-            <button type="button" className="absolute right-1 top-1 hidden rounded bg-white/90 px-1 text-xs text-red-600 group-hover:block" onClick={() => remove(f.name)} title="Eliminar">
-              ✕
+            <button type="button" className="absolute right-1 top-1 hidden rounded bg-white/90 p-1 text-red-600 shadow-sm group-hover:block" onClick={() => remove(f.name)} title="Eliminar">
+              <LuTrash2 aria-hidden />
             </button>
           </div>
         ))}
@@ -124,7 +125,7 @@ export function ImageField({ label, value, onChange }: { label: string; value: s
       )}
       <div className="flex gap-1">
         <input className={inputCls} value={value} placeholder="https://… o suba una imagen" onChange={(e) => onChange(e.target.value.trim())} />
-        <Btn onClick={() => setOpen(true)} title="Subir o elegir de la biblioteca">🖼</Btn>
+        <Btn onClick={() => setOpen(true)} title="Subir o elegir de la biblioteca" className="px-2"><LuImagePlus aria-hidden /></Btn>
       </div>
       {open && (
         <Modal title="Imágenes" onClose={() => setOpen(false)}>

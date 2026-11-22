@@ -70,18 +70,18 @@ export function defaultVariables(): Variable[] {
   ];
 }
 
-export const BLOCK_LABELS: Record<BlockType, { label: string; icon: string; hint: string }> = {
-  heading: { label: "Título", icon: "H", hint: "Encabezado H1–H3" },
-  text: { label: "Texto", icon: "¶", hint: "Párrafos con formato, listas y enlaces" },
-  image: { label: "Imagen", icon: "▣", hint: "Imagen con enlace opcional" },
-  button: { label: "Botón", icon: "▭", hint: "Botón compatible con Outlook" },
-  columns: { label: "Columnas", icon: "▥", hint: "2–4 columnas que se apilan en móvil" },
-  hero: { label: "Portada", icon: "◩", hint: "Imagen de fondo con texto y botón" },
-  divider: { label: "Separador", icon: "—", hint: "Línea horizontal" },
-  spacer: { label: "Espacio", icon: "↕", hint: "Espacio vertical" },
-  social: { label: "Redes", icon: "@", hint: "Enlaces a redes sociales" },
-  footer: { label: "Pie legal", icon: "§", hint: "Datos legales y enlace de baja" },
-  html: { label: "HTML", icon: "</>", hint: "Código HTML libre" },
+export const BLOCK_LABELS: Record<BlockType, { label: string; hint: string }> = {
+  heading: { label: "Título", hint: "Encabezado H1–H3" },
+  text: { label: "Texto", hint: "Párrafos con formato, listas y enlaces" },
+  image: { label: "Imagen", hint: "Imagen con enlace opcional" },
+  button: { label: "Botón", hint: "Botón compatible con Outlook" },
+  columns: { label: "Columnas", hint: "2–4 columnas que se apilan en móvil" },
+  hero: { label: "Portada", hint: "Imagen de fondo con texto y botón" },
+  divider: { label: "Separador", hint: "Línea horizontal" },
+  spacer: { label: "Espacio", hint: "Espacio vertical" },
+  social: { label: "Redes", hint: "Enlaces a redes sociales" },
+  footer: { label: "Pie legal", hint: "Datos legales y enlace de baja" },
+  html: { label: "HTML", hint: "Código HTML libre" },
 };
 
 export function createBlock(type: BlockType, s?: Partial<EmailSettings>): Block {

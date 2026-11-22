@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type DragEvent } from "react";
+import { LuArrowDown, LuArrowUp, LuCopy, LuTrash2 } from "react-icons/lu";
 import type { Block, BlockType, EmailDoc } from "@/lib/email/types";
 import { BLOCK_LABELS, cloneBlock, createBlock } from "@/lib/email/defaults";
 import { findList, locate, type EmailStore, type Target } from "@/lib/email/store";
@@ -82,8 +83,8 @@ function BlockToolbar({ store, block, onSelect }: { store: EmailStore; block: Bl
   return (
     <div className="absolute -top-3 right-2 z-20 flex items-center gap-0.5 rounded-md bg-brand-600 px-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
       <span className="px-1 text-[10px] font-semibold uppercase tracking-wide text-white/80">{BLOCK_LABELS[block.type].label}</span>
-      <button type="button" className={btn} title="Subir" onClick={() => act((l, i) => { if (i > 0) [l[i - 1], l[i]] = [l[i], l[i - 1]]; })}>↑</button>
-      <button type="button" className={btn} title="Bajar" onClick={() => act((l, i) => { if (i < l.length - 1) [l[i + 1], l[i]] = [l[i], l[i + 1]]; })}>↓</button>
+      <button type="button" className={btn} title="Subir" onClick={() => act((l, i) => { if (i > 0) [l[i - 1], l[i]] = [l[i], l[i - 1]]; })}><LuArrowUp aria-hidden /></button>
+      <button type="button" className={btn} title="Bajar" onClick={() => act((l, i) => { if (i < l.length - 1) [l[i + 1], l[i]] = [l[i], l[i + 1]]; })}><LuArrowDown aria-hidden /></button>
       <button
         type="button"
         className={btn}
@@ -94,9 +95,9 @@ function BlockToolbar({ store, block, onSelect }: { store: EmailStore; block: Bl
           onSelect(copy.id);
         }}
       >
-        ⧉
+        <LuCopy aria-hidden />
       </button>
-      <button type="button" className={btn} title="Eliminar (Supr)" onClick={() => { act((l, i) => { l.splice(i, 1); }); onSelect(null); }}>🗑</button>
+      <button type="button" className={btn} title="Eliminar (Supr)" onClick={() => { act((l, i) => { l.splice(i, 1); }); onSelect(null); }}><LuTrash2 aria-hidden /></button>
     </div>
   );
 }
@@ -187,10 +188,10 @@ export function Canvas({ store, selectedId, onSelect, device, dark }: { store: E
   const mobile = device === "mobile";
   const width = mobile ? 375 : s.width;
   return (
-    <div className="min-h-full px-6 py-8" style={{ background: dark && s.darkMode ? s.darkBodyBg : s.bodyBg }} onClick={() => onSelect(null)}>
+    <div className="min-h-full px-6 py-10" style={{ background: dark && s.darkMode ? s.darkBodyBg : s.bodyBg }} onClick={() => onSelect(null)}>
       {s.webFontUrl && <link rel="stylesheet" href={s.webFontUrl} />}
       <div
-        className={`email-canvas mx-auto shadow-sm ${dark && s.darkMode ? "email-canvas-dark" : ""}`}
+        className={`email-canvas mx-auto shadow-[0_2px_5px_rgba(6,32,21,0.08),0_24px_70px_rgba(6,32,21,0.15)] ring-1 ring-black/[0.04] ${dark && s.darkMode ? "email-canvas-dark" : ""}`}
         style={{
           width,
           maxWidth: "100%",

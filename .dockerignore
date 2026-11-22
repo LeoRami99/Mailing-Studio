@@ -1,0 +1,11 @@
+.git
+.github
+.next
+node_modules
+dist-electron
+storage
+*.log
+.env*
+Dockerfile*
+compose*.yaml
+docs

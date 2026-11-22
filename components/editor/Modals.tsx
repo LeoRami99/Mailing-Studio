@@ -1,6 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  LuCircleCheck,
+  LuCircleX,
+  LuCopy,
+  LuDownload,
+  LuExternalLink,
+  LuFileCode,
+  LuInfo,
+  LuMonitor,
+  LuPaintbrush,
+  LuSmartphone,
+  LuTablet,
+  LuTrash2,
+  LuTriangleAlert,
+} from "react-icons/lu";
 import type { EmailDoc, Project, Variable } from "@/lib/email/types";
 import { renderEmail } from "@/lib/email/render";
 import { htmlToText } from "@/lib/email/plaintext";
@@ -8,6 +23,8 @@ import { DEFAULT_CUSTOM_PLATFORM, getPlatform, PLATFORMS, type CustomPlatformCon
 import { findVariables, transformTokens } from "@/lib/email/tokens";
 import { validateEmail, type Issue } from "@/lib/email/validate";
 import { emptyDoc, TEMPLATES, uid } from "@/lib/email/defaults";
+import { appendTemplateCss, extractTemplateCss } from "@/lib/email/html-template";
+import { adaptHtmlTemplate, type AdaptedTemplate } from "@/lib/email/import-template";
 import { Btn, inputCls, Modal, TextInput, Toggle } from "./fields";
 
 export function download(name: string, content: string, type = "text/html") {
@@ -34,7 +51,7 @@ export function PreviewFrame({ html, width, height = "100%", dark, noImages }: {
   return (
     <iframe
       title="Vista previa del correo"
-      className="mx-auto block rounded-md border border-zinc-200 bg-white shadow-sm transition-all"
+      className="mx-auto block rounded-xl border border-white bg-white shadow-[0_12px_36px_rgba(6,32,21,0.13)] ring-1 ring-black/[0.04] transition-all"
       style={{ width, height, maxWidth: "100%" }}
       sandbox="allow-same-origin allow-popups"
       srcDoc={src}
@@ -54,12 +71,13 @@ export function PreviewModal({ doc, onClose }: { doc: EmailDoc; onClose: () => v
 
   return (
     <Modal title="Vista previa" onClose={onClose} wide>
-      <div className="flex h-[80vh]">
-        <aside className="w-64 shrink-0 overflow-y-auto border-r border-zinc-200 p-4">
-          <div className="mb-4 flex flex-col gap-1">
+      <div className="flex h-[min(80vh,760px)] min-h-0 flex-col md:flex-row">
+        <aside className="soft-scrollbar max-h-64 w-full shrink-0 overflow-y-auto border-b border-zinc-200/70 bg-white/55 p-4 md:max-h-none md:w-64 md:border-r md:border-b-0">
+          <div className="mb-4 grid grid-cols-3 gap-1 md:flex md:flex-col">
             {(["desktop", "tablet", "mobile"] as const).map((d) => (
               <Btn key={d} variant={device === d ? "primary" : "default"} onClick={() => setDevice(d)}>
-                {{ desktop: "🖥 Escritorio", tablet: "⬚ Tablet (768)", mobile: "📱 Móvil (375)" }[d]}
+                {d === "desktop" ? <LuMonitor aria-hidden /> : d === "tablet" ? <LuTablet aria-hidden /> : <LuSmartphone aria-hidden />}
+                {{ desktop: "Escritorio", tablet: "Tablet (768)", mobile: "Móvil (375)" }[d]}
               </Btn>
             ))}
           </div>
@@ -67,7 +85,7 @@ export function PreviewModal({ doc, onClose }: { doc: EmailDoc; onClose: () => v
             <Toggle label="Simular modo oscuro" checked={dark} onChange={setDark} />
             <Toggle label="Imágenes bloqueadas" checked={noImages} onChange={setNoImages} hint="Así lo ven quienes no cargan imágenes (Outlook por defecto)." />
           </div>
-          <p className="mb-2 text-xs font-semibold uppercase text-zinc-500">Datos de prueba</p>
+          <p className="mb-2 text-xs font-semibold text-zinc-600">Datos de prueba</p>
           <div className="flex flex-col gap-2">
             {doc.variables.map((v) => (
               <TextInput key={v.key} label={`${v.label} {{${v.key}}}`} value={data[v.key] ?? ""} onChange={(x) => setData((d) => ({ ...d, [v.key]: x }))} />
@@ -75,12 +93,12 @@ export function PreviewModal({ doc, onClose }: { doc: EmailDoc; onClose: () => v
             <Btn variant="ghost" onClick={() => setData(Object.fromEntries(doc.variables.map((v) => [v.key, ""])))}>Vaciar (probar valores por defecto)</Btn>
           </div>
         </aside>
-        <div className="flex min-w-0 flex-1 flex-col bg-zinc-100">
-          <div className="border-b border-zinc-200 bg-white px-5 py-3">
+        <div className="flex min-h-[360px] min-w-0 flex-1 flex-col bg-zinc-100/75">
+          <div className="shrink-0 border-b border-zinc-200/70 bg-white/80 px-4 py-3 sm:px-5">
             <p className="text-sm font-semibold text-zinc-900" dangerouslySetInnerHTML={{ __html: subject || "<span class='text-zinc-400'>(sin asunto)</span>" }} />
             <p className="truncate text-xs text-zinc-500" dangerouslySetInnerHTML={{ __html: pre || "(sin preheader)" }} />
           </div>
-          <div className="min-h-0 flex-1 p-4">
+          <div className="soft-scrollbar min-h-0 flex-1 overflow-auto p-3 sm:p-4">
             <PreviewFrame html={html} width={w} dark={dark} noImages={noImages} />
           </div>
         </div>
@@ -94,18 +112,20 @@ export function PreviewModal({ doc, onClose }: { doc: EmailDoc; onClose: () => v
 // ---------------------------------------------------------------------------
 
 function IssueList({ issues }: { issues: Issue[] }) {
-  const icon = { error: "⛔", warning: "⚠️", info: "ℹ️" };
+  const icons = { error: LuCircleX, warning: LuTriangleAlert, info: LuInfo };
   const color = { error: "border-red-200 bg-red-50 text-red-800", warning: "border-amber-200 bg-amber-50 text-amber-900", info: "border-zinc-200 bg-zinc-50 text-zinc-700" };
   const order = { error: 0, warning: 1, info: 2 };
   return (
     <ul className="flex flex-col gap-2">
-      {[...issues].sort((a, b) => order[a.level] - order[b.level]).map((i, k) => (
-        <li key={k} className={`rounded-md border px-3 py-2 text-sm ${color[i.level]}`}>
-          <span className="mr-1">{icon[i.level]}</span>
-          {i.message}
-          {i.clients && <span className="ml-1 text-xs opacity-70">({i.clients})</span>}
-        </li>
-      ))}
+      {[...issues].sort((a, b) => order[a.level] - order[b.level]).map((i, k) => {
+        const Icon = icons[i.level];
+        return (
+          <li key={k} className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${color[i.level]}`}>
+            <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>{i.message}{i.clients && <span className="ml-1 text-xs opacity-70">({i.clients})</span>}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -179,7 +199,7 @@ export function ExportModal({ doc, name, onClose }: { doc: EmailDoc; name: strin
   };
 
   const tabs = [
-    { id: "check", label: `Revisión ${errors ? `⛔${errors}` : ""} ${warns ? `⚠️${warns}` : ""}` },
+    { id: "check", label: `Revisión${errors ? ` · ${errors} errores` : ""}${warns ? ` · ${warns} avisos` : ""}` },
     { id: "html", label: "HTML" },
     { id: "text", label: "Texto plano" },
     { id: "data", label: "Variables" },
@@ -192,15 +212,15 @@ export function ExportModal({ doc, name, onClose }: { doc: EmailDoc; name: strin
       wide
       footer={
         <>
-          {copied && <span className="mr-auto text-sm text-green-600">✓ {copied} copiado</span>}
-          <Btn onClick={() => copy(out.html, "HTML")}>Copiar HTML</Btn>
-          <Btn onClick={() => download(`${file}.txt`, text, "text/plain")}>Descargar .txt</Btn>
-          <Btn variant="primary" onClick={() => download(`${file}-${platform.id}.html`, out.html)}>Descargar .html</Btn>
+          {copied && <span className="mr-auto inline-flex items-center gap-1 text-sm text-green-600"><LuCircleCheck aria-hidden /> {copied} copiado</span>}
+          <Btn onClick={() => copy(out.html, "HTML")}><LuCopy aria-hidden /> Copiar HTML</Btn>
+          <Btn onClick={() => download(`${file}.txt`, text, "text/plain")}><LuDownload aria-hidden /> Descargar .txt</Btn>
+          <Btn variant="primary" onClick={() => download(`${file}-${platform.id}.html`, out.html)}><LuDownload aria-hidden /> Descargar .html</Btn>
         </>
       }
     >
-      <div className="grid h-[72vh] grid-cols-[300px_1fr]">
-        <aside className="flex flex-col gap-3 overflow-y-auto border-r border-zinc-200 p-4">
+      <div className="grid h-[min(72vh,720px)] min-h-0 grid-cols-1 grid-rows-[minmax(0,auto)_minmax(280px,1fr)] md:grid-cols-[280px_minmax(0,1fr)] md:grid-rows-1">
+        <aside className="soft-scrollbar flex max-h-64 flex-col gap-3 overflow-y-auto border-b border-zinc-200/70 bg-white/50 p-4 md:max-h-none md:border-r md:border-b-0">
           <label className="flex flex-col gap-1 text-xs font-medium text-zinc-700">
             Plataforma de envío
             <select className={inputCls} value={platformId} onChange={(e) => setPlatformId(e.target.value)}>
@@ -212,7 +232,7 @@ export function ExportModal({ doc, name, onClose }: { doc: EmailDoc; name: strin
           <p className="rounded-md bg-zinc-50 p-2 text-xs text-zinc-600">{platform.notes}</p>
           {platform.docs && (
             <a className="text-xs text-brand-600 hover:underline" href={platform.docs} target="_blank" rel="noreferrer">
-              Documentación de la plataforma ↗
+              Documentación de la plataforma <LuExternalLink className="ml-0.5 inline" aria-hidden />
             </a>
           )}
           {platformId === "custom" && (
@@ -238,15 +258,15 @@ export function ExportModal({ doc, name, onClose }: { doc: EmailDoc; name: strin
           </div>
           <p className="text-xs text-zinc-500">Peso: {(new TextEncoder().encode(out.html).length / 1024).toFixed(1)} KB</p>
         </aside>
-        <div className="flex min-w-0 flex-col">
-          <div className="flex border-b border-zinc-200 px-3">
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div className="soft-scrollbar flex shrink-0 overflow-x-auto border-b border-zinc-200/70 bg-white/55 px-2 sm:px-3">
             {tabs.map((t) => (
-              <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`border-b-2 px-3 py-2 text-sm ${tab === t.id ? "border-brand-600 font-semibold text-brand-700" : "border-transparent text-zinc-500"}`}>
+              <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`shrink-0 border-b-2 px-3 py-2.5 text-sm transition ${tab === t.id ? "border-brand-600 font-semibold text-brand-700" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}>
                 {t.label}
               </button>
             ))}
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="soft-scrollbar min-h-0 flex-1 overflow-auto p-3 sm:p-4">
             {tab === "check" && <IssueList issues={issues} />}
             {tab === "html" && <pre className="whitespace-pre-wrap break-all rounded-md bg-zinc-900 p-3 font-mono text-[11px] text-zinc-100">{out.html}</pre>}
             {tab === "text" && (
@@ -319,32 +339,61 @@ export function normalizeMergeTags(html: string): { html: string; keys: string[]
 export function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (doc: EmailDoc, name?: string) => void }) {
   const [tab, setTab] = useState<"html" | "json">("html");
   const [html, setHtml] = useState("");
+  const [css, setCss] = useState("");
   const [convert, setConvert] = useState(true);
   const [error, setError] = useState("");
+  const [adapted, setAdapted] = useState<AdaptedTemplate | null>(null);
 
   const readFile = async (f: File | undefined, cb: (t: string) => void) => {
     if (!f) return;
     cb(await f.text());
+    setAdapted(null);
   };
 
-  const importHtml = (asBlock: boolean) => {
+  const prepareSource = () => {
     if (!html.trim()) return setError("Pegue o cargue un HTML.");
-    const { html: h, keys } = convert ? normalizeMergeTags(html) : { html, keys: [] };
-    const d = emptyDoc();
+    const source = appendTemplateCss(html, css);
+    const { html: h, keys } = convert ? normalizeMergeTags(source) : { html: source, keys: [] };
+    setError("");
+    return { h, keys };
+  };
+
+  const addDetectedVariables = (d: EmailDoc, keys: string[]) => {
     const known = new Set(d.variables.map((v) => v.key));
     const extra: Variable[] = keys.filter((k) => !known.has(k)).map((k) => ({ key: k, label: k, sample: `[${k}]`, fallback: "", tags: {} }));
     d.variables.push(...extra);
+  };
+
+  const importHtml = (asBlock: boolean) => {
+    const source = prepareSource();
+    if (!source) return;
+    const { h, keys } = source;
+    const d = emptyDoc();
+    addDetectedVariables(d, keys);
     const title = h.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? "";
     d.settings.title = title || "Correo importado";
     if (asBlock) {
       const body = h.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? h;
       d.mode = "visual";
+      d.settings.customCss = extractTemplateCss(h);
       d.blocks = [{ id: uid(), type: "html", code: body.trim(), padding: { top: 0, right: 0, bottom: 0, left: 0 }, background: "" }];
     } else {
       d.mode = "code";
       d.code = h;
     }
     onImport(d, d.settings.title);
+  };
+
+  const prepareAdapted = () => {
+    const source = prepareSource();
+    if (!source) return;
+    try {
+      const result = adaptHtmlTemplate(source.h);
+      addDetectedVariables(result.doc, source.keys);
+      setAdapted(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo analizar la plantilla.");
+    }
   };
 
   const importJson = (text: string) => {
@@ -361,28 +410,59 @@ export function ImportModal({ onClose, onImport }: { onClose: () => void; onImpo
 
   return (
     <Modal title="Cargar" onClose={onClose}>
-      <div className="flex border-b border-zinc-200 px-3">
+      <div className="flex shrink-0 border-b border-zinc-200/70 bg-white/55 px-3">
         {(["html", "json"] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} className={`border-b-2 px-3 py-2 text-sm ${tab === t ? "border-brand-600 font-semibold text-brand-700" : "border-transparent text-zinc-500"}`}>
+          <button key={t} type="button" onClick={() => setTab(t)} className={`border-b-2 px-3 py-2.5 text-sm transition ${tab === t ? "border-brand-600 font-semibold text-brand-700" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}>
             {t === "html" ? "HTML existente" : "Proyecto (.json)"}
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-3 p-5">
+      <div className="flex flex-col gap-3 p-4 sm:p-5">
         {tab === "html" ? (
           <>
-            <label className="cursor-pointer rounded-md border-2 border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 hover:border-brand-400">
-              Seleccionar archivo .html
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 hover:border-brand-400">
+              <LuFileCode aria-hidden /> Seleccionar archivo .html
               <input type="file" accept=".html,.htm,text/html" hidden onChange={(e) => readFile(e.target.files?.[0], setHtml)} />
             </label>
-            <textarea className={`${inputCls} font-mono text-xs`} rows={12} placeholder="…o pegue aquí el código HTML" value={html} onChange={(e) => setHtml(e.target.value)} />
-            <Toggle label="Convertir merge tags de otras plataformas a variables" checked={convert} onChange={setConvert} hint="Detecta *|FNAME|*, {{ contact.X }}, %%X%%, %X%, {X} y enlaces de baja." />
+            <textarea className={`${inputCls} font-mono text-xs`} rows={12} placeholder="…o pegue aquí el código HTML" value={html} onChange={(e) => { setHtml(e.target.value); setAdapted(null); }} />
+            <details className="rounded-md border border-zinc-200 bg-zinc-50">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-700"><LuPaintbrush aria-hidden /> Agregar una hoja CSS separada</summary>
+              <div className="flex flex-col gap-2 border-t border-zinc-200 p-3">
+                <label className="cursor-pointer rounded-md border border-dashed border-zinc-300 p-3 text-center text-xs text-zinc-500 hover:border-brand-400">
+                  Seleccionar archivo .css
+                  <input type="file" accept=".css,text/css" hidden onChange={(e) => readFile(e.target.files?.[0], setCss)} />
+                </label>
+                <textarea className={`${inputCls} font-mono text-xs`} rows={7} placeholder="…o pegue aquí el CSS adicional" value={css} onChange={(e) => { setCss(e.target.value); setAdapted(null); }} />
+                <p className="text-[11px] text-zinc-500">Se insertará en un bloque &lt;style&gt; dentro del documento. Las reglas existentes se conservan.</p>
+              </div>
+            </details>
+            <Toggle label="Convertir merge tags de otras plataformas a variables" checked={convert} onChange={(value) => { setConvert(value); setAdapted(null); }} hint="Detecta *|FNAME|*, {{ contact.X }}, %%X%%, %X%, {X} y enlaces de baja." />
+            {adapted && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+                <p className="mb-2 flex items-center gap-2 font-semibold"><LuCircleCheck aria-hidden /> Plantilla lista para el editor visual</p>
+                <div className="mb-3 grid grid-cols-1 gap-2 text-center text-xs sm:grid-cols-3">
+                  <div className="rounded-md bg-white/70 p-2"><strong className="block text-lg">{adapted.report.nativeBlocks}</strong>bloques editables</div>
+                  <div className="rounded-md bg-white/70 p-2"><strong className="block text-lg">{adapted.report.columns}</strong>grupos de columnas</div>
+                  <div className="rounded-md bg-white/70 p-2"><strong className="block text-lg">{adapted.report.htmlBlocks}</strong>secciones HTML</div>
+                </div>
+                {adapted.report.warnings.length > 0 && (
+                  <ul className="mb-3 list-disc space-y-1 pl-5 text-xs text-amber-800">
+                    {adapted.report.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Btn variant="primary" onClick={() => onImport(adapted.doc, adapted.doc.settings.title)}>Crear proyecto adaptado</Btn>
+                  <Btn variant="ghost" onClick={() => setAdapted(null)}>Volver a analizar</Btn>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Btn variant="primary" onClick={() => importHtml(false)}>Editar como código</Btn>
-              <Btn onClick={() => importHtml(true)}>Insertar como bloque HTML en el editor visual</Btn>
+              <Btn variant="primary" onClick={prepareAdapted}>Adaptar al editor visual</Btn>
+              <Btn onClick={() => importHtml(false)}>Conservar exactamente</Btn>
+              <Btn variant="ghost" onClick={() => importHtml(true)}>Insertar como bloque único</Btn>
             </div>
             <p className="text-xs text-zinc-500">
-              «Editar como código» conserva el HTML tal cual, con vista previa en vivo, variables y exportación a cualquier plataforma. «Bloque HTML» le permite agregar bloques visuales antes o después.
+              La adaptación híbrida convierte títulos, textos, imágenes, botones y columnas; las secciones complejas se mantienen como HTML. «Conservar exactamente» abre el editor de contenido, HTML y CSS sin transformar la estructura.
             </p>
           </>
         ) : (
@@ -412,15 +492,15 @@ export function ProjectsModal({ projects, currentId, onOpen, onNew, onDelete, on
 }) {
   return (
     <Modal title="Mis correos y plantillas" onClose={onClose} wide>
-      <div className="p-5">
+      <div className="p-4 sm:p-5">
         <h3 className="mb-3 text-sm font-semibold text-zinc-700">Crear nuevo desde plantilla</h3>
-        <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="mb-8 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {TEMPLATES.map((t) => (
             <TemplateCard key={t.id} name={t.name} description={t.description} doc={t.build()} onClick={() => onNew(t.build(), t.name === "En blanco" ? "Correo sin título" : t.name)} />
           ))}
         </div>
-        <h3 className="mb-3 text-sm font-semibold text-zinc-700">Correos guardados en este navegador ({projects.length})</h3>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <h3 className="mb-3 text-sm font-semibold text-zinc-700">Correos guardados ({projects.length})</h3>
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {[...projects].sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
             <div key={p.id} className={`group overflow-hidden rounded-lg border ${p.id === currentId ? "border-brand-500 ring-2 ring-brand-500/20" : "border-zinc-200"}`}>
               <button type="button" className="block w-full" onClick={() => onOpen(p.id)}>
@@ -431,14 +511,14 @@ export function ProjectsModal({ projects, currentId, onOpen, onNew, onDelete, on
                   <p className="truncate text-sm font-medium text-zinc-800">{p.name}</p>
                   <p className="text-[11px] text-zinc-400">{new Date(p.updatedAt).toLocaleString("es")}</p>
                 </div>
-                <button type="button" className="rounded px-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" title="Duplicar" onClick={() => onDuplicate(p.id)}>⧉</button>
+                <button type="button" className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" title="Duplicar" onClick={() => onDuplicate(p.id)}><LuCopy aria-hidden /></button>
                 <button
                   type="button"
                   className="rounded px-1 text-zinc-400 hover:bg-red-50 hover:text-red-600"
                   title="Eliminar"
                   onClick={() => confirm(`¿Eliminar «${p.name}»? Esta acción no se puede deshacer.`) && onDelete(p.id)}
                 >
-                  🗑
+                  <LuTrash2 aria-hidden />
                 </button>
               </div>
             </div>

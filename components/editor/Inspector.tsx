@@ -18,6 +18,8 @@ import {
 } from "./fields";
 import { RichText } from "./RichText";
 import { ImageField } from "./ImagePicker";
+import { BlockIcon } from "./BlockIcon";
+import { LuArrowDown, LuArrowUp, LuCornerUpLeft, LuMousePointer2, LuTrash2, LuX } from "react-icons/lu";
 
 const FONT_OPTS = [{ label: "Heredar del diseño", value: "" }, ...FONT_STACKS];
 
@@ -29,7 +31,7 @@ export function Inspector({ store, selectedId, onSelect }: { store: EmailStore; 
   if (!block) {
     return (
       <div className="p-6 text-center text-sm text-zinc-400">
-        <p className="mb-2 text-3xl">☝</p>
+        <LuMousePointer2 className="mx-auto mb-3 h-7 w-7 text-zinc-300" aria-hidden />
         Seleccione un bloque en el lienzo para editar sus propiedades, o arrastre uno nuevo desde el panel izquierdo.
       </div>
     );
@@ -49,19 +51,19 @@ export function Inspector({ store, selectedId, onSelect }: { store: EmailStore; 
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/70 bg-white/75 px-4 py-3 backdrop-blur-xl">
         <div>
           <p className="text-sm font-semibold text-zinc-900">
-            <span className="mr-1.5 inline-block w-6 text-center font-mono text-zinc-400">{meta.icon}</span>
+            <BlockIcon type={block.type} className="mr-2 inline h-4 w-4 text-zinc-400" />
             {meta.label}
           </p>
           {loc?.target.columnsId && (
             <button type="button" className="text-xs text-brand-600 hover:underline" onClick={() => onSelect(loc.target.columnsId!)}>
-              ↑ Seleccionar columnas contenedoras
+              <LuCornerUpLeft className="mr-1 inline" aria-hidden /> Seleccionar columnas contenedoras
             </button>
           )}
         </div>
-        <Btn variant="ghost" onClick={() => onSelect(null)} title="Deseleccionar">✕</Btn>
+        <Btn variant="ghost" onClick={() => onSelect(null)} title="Deseleccionar" className="px-2"><LuX aria-hidden /></Btn>
       </div>
 
       <Section title="Contenido">
@@ -270,9 +272,9 @@ function SocialEditor({ items, onChange }: { items: SocialItem[]; onChange: (v: 
         <div key={it.id} className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
           <div className="flex items-center gap-1">
             <input className="flex-1 rounded border border-zinc-300 px-2 py-1 text-sm" value={it.label} placeholder="Etiqueta" onChange={(e) => upd(i, { label: e.target.value, network: e.target.value })} />
-            <button type="button" className="px-1 text-zinc-400 hover:text-zinc-700" onClick={() => move(i, -1)}>↑</button>
-            <button type="button" className="px-1 text-zinc-400 hover:text-zinc-700" onClick={() => move(i, 1)}>↓</button>
-            <button type="button" className="px-1 text-red-400 hover:text-red-600" onClick={() => onChange(items.filter((_, j) => j !== i))}>✕</button>
+            <button type="button" className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" title="Subir" onClick={() => move(i, -1)}><LuArrowUp aria-hidden /></button>
+            <button type="button" className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" title="Bajar" onClick={() => move(i, 1)}><LuArrowDown aria-hidden /></button>
+            <button type="button" className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600" title="Eliminar" onClick={() => onChange(items.filter((_, j) => j !== i))}><LuTrash2 aria-hidden /></button>
           </div>
           <input className="rounded border border-zinc-300 px-2 py-1 text-sm" value={it.url} placeholder="https://" onChange={(e) => upd(i, { url: e.target.value })} />
           <ImageField label="Ícono PNG (opcional, si no se usa texto)" value={it.icon} onChange={(v) => upd(i, { icon: v })} />

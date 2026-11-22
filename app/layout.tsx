@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Misiva — editor de correos HTML",
-  description: "Editor visual de código abierto para crear correos HTML compatibles con Gmail, Outlook, Apple Mail y cualquier plataforma de envío.",
+  title: "Misiva — editor profesional de correos HTML",
+  description: "Misiva, editor visual de código abierto para crear correos HTML profesionales. Desarrollado con Claude y Codex por Zegiru Labs.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

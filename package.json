@@ -16,7 +16,7 @@
     "nextjs"
   ],
   "license": "MIT",
-  "author": "Leonardo Ramírez",
+  "author": "Zegiru Labs",
   "private": true,
   "main": "electron/main.cjs",
   "engines": {
@@ -36,13 +36,19 @@
     "dist:mac": "npm run electron:build && electron-builder --mac"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@node-rs/argon2": "^2.2.2",
     "next": "16.4.6",
+    "pg": "^8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "react-icons": "^5.7.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "^45.4.1",

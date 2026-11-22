@@ -1,6 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  LuCircleAlert,
+  LuCircleCheck,
+  LuDownload,
+  LuEye,
+  LuFileDown,
+  LuMenu,
+  LuMonitor,
+  LuMoonStar,
+  LuRedo2,
+  LuSmartphone,
+  LuUndo2,
+  LuUpload,
+  LuUserRound,
+} from "react-icons/lu";
+import type { AuthUser } from "@/components/auth/AuthGate";
+import { AccountModal } from "@/components/auth/AccountModal";
 import type { EmailDoc, Project } from "@/lib/email/types";
 import { cloneBlock, emptyDoc, TEMPLATES, uid } from "@/lib/email/defaults";
 import { locate, useEmailStore } from "@/lib/email/store";
@@ -22,8 +39,9 @@ function loadProjects(): Project[] {
   }
 }
 
-export default function Editor() {
+export default function Editor({ user, onSignedOut }: { user: AuthUser | null; onSignedOut: () => void }) {
   const [ready, setReady] = useState(false);
+  const [serverStorage, setServerStorage] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentId, setCurrentId] = useState("");
   const [name, setName] = useState("Correo sin título");
@@ -32,27 +50,52 @@ export default function Editor() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [darkCanvas, setDarkCanvas] = useState(false);
-  const [modal, setModal] = useState<"preview" | "export" | "import" | "projects" | null>(null);
+  const [modal, setModal] = useState<"preview" | "export" | "import" | "projects" | "account" | null>(null);
   const [saved, setSaved] = useState<"saved" | "saving" | "error">("saved");
   const issues = useValidation(doc);
 
-  // Carga inicial desde localStorage
+  // En self-hosted los proyectos viven en el servidor; en web local/Electron,
+  // el comportamiento histórico de localStorage se conserva.
   useEffect(() => {
-    const list = loadProjects();
-    const cur = localStorage.getItem(KEY_CURRENT);
-    let p = list.find((x) => x.id === cur) ?? list[0];
-    if (!p) {
-      p = { id: uid(), name: "Boletín de ejemplo", updatedAt: Date.now(), doc: TEMPLATES.find((t) => t.id === "newsletter")!.build() };
-      list.push(p);
-      localStorage.setItem(KEY_PROJECTS, JSON.stringify(list));
+    let cancelled = false;
+    const initialize = async () => {
+      let remote = false;
+      let list: Project[] = [];
+      try {
+        const config = await fetch("/api/config", { cache: "no-store" }).then((res) => res.json()) as { projectStorage?: string };
+        remote = config.projectStorage === "server";
+        if (remote) {
+          const result = await fetch("/api/projects", { cache: "no-store" }).then((res) => res.json()) as { projects?: Project[] };
+          list = result.projects ?? [];
+        } else {
+          list = loadProjects();
+        }
+      } catch {
+        list = loadProjects();
+      }
+      if (cancelled) return;
+
+      const cur = localStorage.getItem(KEY_CURRENT);
+      let p = list.find((item) => item.id === cur) ?? list[0];
+      if (!p) {
+        p = { id: uid(), name: "Boletín de ejemplo", updatedAt: Date.now(), doc: TEMPLATES.find((t) => t.id === "newsletter")!.build() };
+        list.push(p);
+        if (remote) {
+          await fetch("/api/projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) });
+        } else {
+          localStorage.setItem(KEY_PROJECTS, JSON.stringify(list));
+        }
+      }
       localStorage.setItem(KEY_CURRENT, p.id);
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProjects(list);
-    setCurrentId(p.id);
-    setName(p.name);
-    load(p.doc);
-    setReady(true);
+      setServerStorage(remote);
+      setProjects(list);
+      setCurrentId(p.id);
+      setName(p.name);
+      load(p.doc);
+      setReady(true);
+    };
+    void initialize();
+    return () => { cancelled = true; };
   }, [load]);
 
   // Guardado automático
@@ -71,9 +114,16 @@ export default function Editor() {
           ? prev.map((p) => (p.id === currentId ? { ...p, name, doc, updatedAt: Date.now() } : p))
           : [...prev, { id: currentId, name, doc, updatedAt: Date.now() }];
         try {
-          localStorage.setItem(KEY_PROJECTS, JSON.stringify(next));
           localStorage.setItem(KEY_CURRENT, currentId);
-          setSaved("saved");
+          if (serverStorage) {
+            const project = next.find((item) => item.id === currentId)!;
+            void fetch("/api/projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(project) })
+              .then((res) => { if (!res.ok) throw new Error(); setSaved("saved"); })
+              .catch(() => setSaved("error"));
+          } else {
+            localStorage.setItem(KEY_PROJECTS, JSON.stringify(next));
+            setSaved("saved");
+          }
         } catch {
           setSaved("error");
         }
@@ -81,12 +131,29 @@ export default function Editor() {
       });
     }, 500);
     return () => clearTimeout(t);
-  }, [doc, name, currentId, ready]);
+  }, [doc, name, currentId, ready, serverStorage]);
 
   const persist = (list: Project[], cur: string) => {
     setProjects(list);
-    localStorage.setItem(KEY_PROJECTS, JSON.stringify(list));
     localStorage.setItem(KEY_CURRENT, cur);
+    if (serverStorage) {
+      const project = list.find((item) => item.id === cur);
+      if (project) void fetch("/api/projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(project) });
+    } else {
+      localStorage.setItem(KEY_PROJECTS, JSON.stringify(list));
+    }
+  };
+
+  const openProjects = async () => {
+    if (serverStorage) {
+      try {
+        const result = await fetch("/api/projects", { cache: "no-store" }).then((res) => res.json()) as { projects?: Project[] };
+        if (result.projects) setProjects(result.projects);
+      } catch {
+        // Se conserva la copia que ya está abierta si el servidor no responde.
+      }
+    }
+    setModal("projects");
   };
 
   const openProject = (id: string) => {
@@ -155,7 +222,7 @@ export default function Editor() {
   const warnings = issues.filter((i) => i.level === "warning").length;
 
   if (!ready) {
-    return <div className="flex h-screen flex-col items-center justify-center gap-3 text-sm text-zinc-400">
+    return <div className="misiva-shell flex h-screen flex-col items-center justify-center gap-3 text-sm text-zinc-500">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/icon.svg" alt="Misiva" width={56} height={56} className="animate-pulse" />
         Cargando editor…
@@ -163,9 +230,9 @@ export default function Editor() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-100 text-zinc-900">
+    <div className="misiva-shell flex h-screen flex-col overflow-hidden text-zinc-900">
       {/* Barra superior */}
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-200 bg-white px-3">
+      <header className="glass-toolbar flex h-16 shrink-0 items-center gap-2 border-b px-3.5">
         <div className="flex items-center gap-2 pr-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/icon.svg" alt="" width={32} height={32} className="h-8 w-8" />
@@ -173,57 +240,61 @@ export default function Editor() {
             misiva<span className="text-lacre">.</span>
           </span>
         </div>
-        <Btn variant="ghost" onClick={() => setModal("projects")} title="Mis correos y plantillas">☰ Correos</Btn>
+        <Btn variant="ghost" onClick={() => void openProjects()} title="Mis correos y plantillas"><LuMenu aria-hidden /> Correos</Btn>
         <input
-          className="w-56 rounded-md border border-transparent px-2 py-1 text-sm font-medium hover:border-zinc-300 focus:border-brand-500 focus:outline-none"
+          className="w-56 rounded-[10px] border border-transparent bg-white/25 px-2.5 py-1.5 text-sm font-semibold tracking-[-0.01em] transition hover:border-white/80 hover:bg-white/55 focus:border-brand-300 focus:bg-white/85 focus:outline-none focus:ring-4 focus:ring-brand-500/10"
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-label="Nombre del correo"
         />
-        <span className="text-xs text-zinc-400">{saved === "saving" ? "Guardando…" : saved === "error" ? "⚠ No se pudo guardar (almacenamiento lleno)" : "✓ Guardado"}</span>
+        <span className={`inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/35 px-2 py-1 text-[11px] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ${saved === "error" ? "text-amber-700" : "text-zinc-500"}`}>
+          {saved === "error" ? <LuCircleAlert aria-hidden /> : saved === "saved" ? <LuCircleCheck aria-hidden /> : null}
+          {saved === "saving" ? "Guardando…" : saved === "error" ? "No se pudo guardar" : `Guardado${serverStorage ? " en servidor" : ""}`}
+        </span>
 
         <div className="mx-auto flex items-center gap-1">
-          <Btn variant="ghost" onClick={store.undo} disabled={!store.canUndo} title="Deshacer (Ctrl+Z)">↶</Btn>
-          <Btn variant="ghost" onClick={store.redo} disabled={!store.canRedo} title="Rehacer (Ctrl+Shift+Z)">↷</Btn>
-          <div className="mx-2 flex overflow-hidden rounded-md border border-zinc-300">
-            <button type="button" className={`px-3 py-1 text-sm ${device === "desktop" ? "bg-zinc-800 text-white" : "bg-white"}`} onClick={() => setDevice("desktop")} title="Escritorio">🖥</button>
-            <button type="button" className={`px-3 py-1 text-sm ${device === "mobile" ? "bg-zinc-800 text-white" : "bg-white"}`} onClick={() => setDevice("mobile")} title="Móvil">📱</button>
+          <Btn variant="ghost" onClick={store.undo} disabled={!store.canUndo} title="Deshacer (Ctrl+Z)" className="px-2"><LuUndo2 aria-hidden /></Btn>
+          <Btn variant="ghost" onClick={store.redo} disabled={!store.canRedo} title="Rehacer (Ctrl+Shift+Z)" className="px-2"><LuRedo2 aria-hidden /></Btn>
+          <div className="mx-2 flex gap-0.5 rounded-[11px] border border-white/80 bg-zinc-200/55 p-0.5 shadow-[inset_0_1px_3px_rgba(24,24,27,0.08)]">
+            <button type="button" className={`rounded-lg px-3 py-1.5 text-sm transition ${device === "desktop" ? "bg-white text-brand-700 shadow-[0_2px_7px_rgba(24,24,27,0.12)]" : "text-zinc-500 hover:text-zinc-900"}`} onClick={() => setDevice("desktop")} title="Escritorio"><LuMonitor aria-hidden /></button>
+            <button type="button" className={`rounded-lg px-3 py-1.5 text-sm transition ${device === "mobile" ? "bg-white text-brand-700 shadow-[0_2px_7px_rgba(24,24,27,0.12)]" : "text-zinc-500 hover:text-zinc-900"}`} onClick={() => setDevice("mobile")} title="Móvil"><LuSmartphone aria-hidden /></button>
           </div>
           {doc.settings.darkMode && doc.mode === "visual" && (
-            <Btn variant={darkCanvas ? "primary" : "ghost"} onClick={() => setDarkCanvas((x) => !x)} title="Ver fondos en modo oscuro">◐</Btn>
+            <Btn variant={darkCanvas ? "primary" : "ghost"} onClick={() => setDarkCanvas((x) => !x)} title="Ver fondos en modo oscuro" className="px-2"><LuMoonStar aria-hidden /></Btn>
           )}
         </div>
 
-        <Btn variant="ghost" onClick={() => setModal("import")}>⬆ Cargar</Btn>
-        <Btn variant="ghost" onClick={() => download(`${slug(name)}.mailing.json`, JSON.stringify({ name, doc }, null, 2), "application/json")} title="Descargar el proyecto editable">💾 Proyecto</Btn>
-        <Btn onClick={() => setModal("preview")}>👁 Vista previa</Btn>
+        <Btn variant="ghost" onClick={() => setModal("import")}><LuUpload aria-hidden /> Cargar</Btn>
+        <Btn variant="ghost" onClick={() => download(`${slug(name)}.mailing.json`, JSON.stringify({ name, doc }, null, 2), "application/json")} title="Descargar el proyecto editable"><LuFileDown aria-hidden /> Proyecto</Btn>
+        <Btn onClick={() => setModal("preview")}><LuEye aria-hidden /> Vista previa</Btn>
         <Btn variant="primary" onClick={() => setModal("export")}>
-          Exportar HTML
+          <LuDownload aria-hidden /> Exportar HTML
           {(errors > 0 || warnings > 0) && (
             <span className={`ml-1 rounded-full px-1.5 text-[11px] ${errors ? "bg-red-500" : "bg-amber-400 text-zinc-900"}`}>{errors || warnings}</span>
           )}
         </Btn>
+        {user && <Btn variant="ghost" onClick={() => setModal("account")} title={`Cuenta de ${user.name}`} className="px-2"><LuUserRound aria-hidden /></Btn>}
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 gap-2.5 p-2.5 pt-2">
         {doc.mode === "visual" ? (
           <>
-            <aside className="w-72 shrink-0 border-r border-zinc-200 bg-white">
+            <aside className="workspace-panel w-72 shrink-0 overflow-hidden rounded-[16px]">
               <LeftPanel store={store} selectedId={selectedId} onSelect={setSelectedId} />
             </aside>
-            <main className="min-w-0 flex-1 overflow-auto">
+            <main className="canvas-stage soft-scrollbar min-w-0 flex-1 overflow-auto rounded-[18px]">
               <Canvas store={store} selectedId={selectedId} onSelect={setSelectedId} device={device} dark={darkCanvas} />
             </main>
-            <aside className="w-80 shrink-0 overflow-y-auto border-l border-zinc-200 bg-white">
+            <aside className="workspace-panel soft-scrollbar w-80 shrink-0 overflow-y-auto rounded-[16px]">
               <Inspector store={store} selectedId={selectedId} onSelect={setSelectedId} />
             </aside>
           </>
         ) : (
           <>
-            <aside className="w-72 shrink-0 border-r border-zinc-200 bg-white">
+            <aside className="workspace-panel w-72 shrink-0 overflow-hidden rounded-[16px]">
               <LeftPanel store={store} selectedId={null} onSelect={() => {}} />
             </aside>
-            <main className="min-w-0 flex-1">
+            <main className="workspace-panel min-w-0 flex-1 overflow-hidden rounded-[18px]">
               <CodeEditor store={store} device={device} />
             </main>
           </>
@@ -233,6 +304,7 @@ export default function Editor() {
       {modal === "preview" && <PreviewModal doc={doc} onClose={() => setModal(null)} />}
       {modal === "export" && <ExportModal doc={doc} name={name} onClose={() => setModal(null)} />}
       {modal === "import" && <ImportModal onClose={() => setModal(null)} onImport={(d, n) => newProject(d, n ?? "Correo importado")} />}
+      {modal === "account" && user && <AccountModal user={user} onClose={() => setModal(null)} onSignedOut={onSignedOut} />}
       {modal === "projects" && (
         <ProjectsModal
           projects={projects}
@@ -245,6 +317,7 @@ export default function Editor() {
           }}
           onDelete={(id) => {
             const rest = projects.filter((p) => p.id !== id);
+            if (serverStorage) void fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: "DELETE" });
             if (id === currentId) {
               const next = rest[0];
               if (next) {

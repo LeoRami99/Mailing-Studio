@@ -233,7 +233,7 @@ function buildMenu() {
               type: "info",
               title: "Misiva",
               message: `Misiva ${app.getVersion()}`,
-              detail: `Editor visual de correos HTML de código abierto (licencia MIT).\nElectron ${process.versions.electron} · Chromium ${process.versions.chrome}\n\nDatos: ${app.getPath("userData")}`,
+              detail: `Editor visual de correos HTML de código abierto (licencia MIT).\nDesarrollado con Claude y Codex por Zegiru Labs.\n\nElectron ${process.versions.electron} · Chromium ${process.versions.chrome}\nDatos: ${app.getPath("userData")}`,
             }),
         },
       ],

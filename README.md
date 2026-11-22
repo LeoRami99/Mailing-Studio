@@ -1,10 +1,14 @@
 <p align="center">
-  <img src="public/brand/logo.svg" alt="Misiva" width="360">
+  <img src="public/brand/icon.svg" alt="Misiva" width="180">
 </p>
 
 <p align="center">
   <strong>Editor visual de código abierto para crear correos HTML que se ven bien en todas partes.</strong><br>
   Gmail · Outlook · Apple Mail · Yahoo · Samsung Mail · Thunderbird — y exportación lista para SendGrid, Mailchimp, Brevo, HubSpot y más.
+</p>
+
+<p align="center">
+  <strong>Desarrollado con Claude y Codex por Zegiru Labs.</strong>
 </p>
 
 <p align="center">
@@ -28,11 +32,13 @@
 - [Inicio rápido](#inicio-rápido)
 - [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
 - [Compilar](#compilar)
+  - [Servidor propio con Docker](#servidor-propio-con-docker)
   - [Versión web](#versión-web)
   - [App de escritorio](#app-de-escritorio)
   - [Publicar una versión con GitHub Actions](#publicar-una-versión-con-github-actions)
 - [Cómo se usa](#cómo-se-usa)
 - [Configuración](#configuración)
+- [Integración MCP para asistentes de IA](#integración-mcp-para-asistentes-de-ia)
 - [Arquitectura](#arquitectura)
 - [Solución de problemas](#solución-de-problemas)
 - [Contribuir](#contribuir)
@@ -74,8 +80,12 @@ cuentas ni servicios externos.
 
 **Entrada y salida**
 - Exporta HTML (normal o minificado), versión en texto plano y JSON de datos de ejemplo.
-- Carga HTML existente para editarlo en código con vista previa en vivo; convierte merge tags de otras
-  plataformas (`*|FNAME|*`, `{{ contact.X }}`, `%%X%%`…) a variables.
+- Carga plantillas HTML completas y hojas CSS separadas. Permite modificar contenido visualmente, editar
+  el HTML y los bloques `<style>` en pestañas dedicadas, con vista previa en vivo; convierte merge tags de
+  otras plataformas (`*|FNAME|*`, `{{ contact.X }}`, `%%X%%`…) a variables.
+- Importación híbrida: adapta títulos, textos, imágenes, botones, separadores y tablas de 2–4 columnas a
+  bloques nativos; conserva automáticamente las secciones complejas como HTML y muestra un informe antes
+  de crear el proyecto.
 - Guarda y abre proyectos `.json`; guardado automático en el navegador.
 - Biblioteca de imágenes con subida por arrastre.
 - Vista previa en escritorio, tablet y móvil, con modo oscuro simulado e imágenes bloqueadas.
@@ -127,8 +137,8 @@ cd .next/standalone
 PORT=8080 HOSTNAME=0.0.0.0 MAILING_STORAGE_DIR=/var/lib/misiva node server.js
 ```
 
-> ⚠️ Misiva **no tiene autenticación**. Si la publica en internet, póngala detrás de un proxy con inicio
-> de sesión o de una VPN. Vea [SECURITY.md](SECURITY.md).
+Para una instalación multiusuario configure `DATABASE_URL`. Misiva habilita entonces registro, inicio de
+sesión, proyectos aislados por cuenta y tokens MCP revocables. Publique siempre detrás de HTTPS.
 
 Para que los destinatarios vean las imágenes subidas, el servidor debe ser accesible desde internet y
 debe poner su URL en **Diseño → Compatibilidad y exportación → URL pública de las imágenes**. En
@@ -153,6 +163,25 @@ Notas:
 - Para generar también un paquete `.deb`, añada `"deb"` a `build.linux.target` en `package.json` y un
   correo en `author` (electron-builder lo exige como mantenedor).
 - El ícono de la app está en `build/icon.png` (1024 × 1024).
+
+### Servidor propio con Docker
+
+El modo self-hosted usa PostgreSQL para usuarios, sesiones, tokens MCP y proyectos. Las imágenes se guardan
+en un volumen persistente y su propiedad queda asociada a la cuenta en PostgreSQL.
+
+```bash
+cp .env.example .env
+# Edite .env y defina POSTGRES_PASSWORD y APP_ORIGIN.
+docker compose up -d --build
+```
+
+Misiva quedará en <http://127.0.0.1:3000>. El `compose.yaml` escucha solamente en loopback a propósito.
+Al abrirlo por primera vez, cree la cuenta inicial desde **Registrarse**. Para publicarlo, coloque Caddy,
+Traefik o nginx delante y habilite HTTPS. No exponga PostgreSQL ni el puerto 3000 directamente a internet.
+
+Las imágenes viven en `misiva_data`; usuarios, sesiones, tokens y proyectos viven en `postgres_data`.
+Para detener sin borrar datos use `docker compose down`; no use `docker compose down -v` salvo que realmente
+quiera eliminar toda la instalación.
 
 ### Publicar una versión con GitHub Actions
 
@@ -222,6 +251,12 @@ Variables de entorno:
 | `MAILING_STORAGE_DIR` | Carpeta donde se guardan las imágenes subidas (`<dir>/uploads`).     | `./storage`            |
 | `PORT`, `HOSTNAME`    | Puerto e interfaz del servidor autónomo (`server.js`).               | `3000`, `0.0.0.0`      |
 | `MAILING_DEV_URL`     | URL de `next dev` que carga `npm run electron:dev`.                  | `http://localhost:3000`|
+| `MISIVA_SERVER_PROJECTS` | `1` guarda proyectos en el servidor en vez de `localStorage`.     | Desactivado            |
+| `DATABASE_URL`        | Conexión PostgreSQL; activa cuentas, sesiones y proyectos por usuario.| Desactivado           |
+| `DATABASE_SSL`        | `1` activa TLS para una base PostgreSQL externa.                    | `0`                    |
+| `APP_ORIGIN`          | Origen público autorizado para operaciones de escritura.            | Host de la solicitud   |
+| `MISIVA_MCP_TOKEN`    | Token heredado sólo para instalaciones locales sin PostgreSQL.       | Desactivado            |
+| `MISIVA_MCP_ALLOWED_ORIGINS` | Orígenes web adicionales permitidos, separados por comas.    | Ninguno                |
 
 Dónde guarda los datos la app de escritorio:
 
@@ -237,14 +272,49 @@ proyectos (almacenamiento local del navegador interno). El menú *Archivo* abre 
 Los proyectos se guardan en el navegador (web) o en la app (escritorio). Para moverlos entre equipos,
 use **💾 Proyecto** para descargar el `.json` y **⬆ Cargar** para abrirlo.
 
+Con `DATABASE_URL` y `MISIVA_SERVER_PROJECTS=1`, los proyectos se guardan en PostgreSQL y quedan aislados por
+cuenta. Sin PostgreSQL, el modo local/Electron mantiene el almacenamiento histórico en el navegador o en JSON.
+
+## Integración MCP para asistentes de IA
+
+Con PostgreSQL configurado, Misiva publica un servidor MCP remoto mediante Streamable HTTP en:
+
+```text
+https://su-dominio.example/mcp
+```
+
+En Misiva abra el botón de cuenta, entre en **Cuenta y acceso MCP**, cree un token para cada cliente y envíelo
+en el encabezado:
+
+```text
+Authorization: Bearer <TOKEN_MCP_PERSONAL>
+```
+
+Herramientas disponibles:
+
+| Herramienta | Acción |
+| --- | --- |
+| `list_projects` | Lista mailings y sus asuntos. |
+| `get_project` | Lee el documento editable completo. |
+| `create_mailing` | Crea un mailing desde una plantilla profesional. |
+| `save_project` | Guarda cambios hechos por la IA. |
+| `render_project` | Produce HTML/texto plano y ejecuta la revisión de compatibilidad. |
+
+Cada token accede únicamente a los proyectos de su propietario y puede revocarse desde la plataforma. El MCP
+no envía campañas ni dispone de una herramienta para borrar proyectos. Su alcance se limita a diseñar,
+editar, validar y exportar. Para un buen resultado, pida al asistente que termine siempre con
+`render_project` y que corrija todos los errores antes de entregar el HTML.
+
 ## Arquitectura
 
 ```
 app/
-  page.tsx                 Página única: monta el editor (componente cliente)
+  page.tsx                 Puerta de sesión y editor
+  api/auth/                Registro, login, logout, sesión y tokens MCP
   api/upload/route.ts      Subir, listar y borrar imágenes
   media/[file]/route.ts    Servir imágenes subidas
 components/editor/         Interfaz: lienzo, paneles, inspector, modales, editor de código
+components/auth/           Login, registro y administración de acceso MCP
 lib/email/
   types.ts                 Modelo del documento (bloques, ajustes, variables)
   render.ts                Documento → HTML compatible con clientes de correo
@@ -254,6 +324,7 @@ lib/email/
   plaintext.ts             Versión en texto plano
   defaults.ts              Bloques por defecto y plantillas
   store.ts                 Estado con historial (deshacer/rehacer)
+lib/server/                PostgreSQL, autenticación y persistencia por usuario
 electron/main.cjs          Proceso principal de Electron
 scripts/                   Preparación del servidor autónomo y empaquetado
 public/brand/              Logo e íconos
@@ -288,12 +359,13 @@ Los cambios por versión están en [CHANGELOG.md](CHANGELOG.md).
 | Elemento       | Valor |
 | -------------- | ----- |
 | Nombre         | **Misiva** (en el logo, en minúsculas: *misiva.*) |
-| Color principal «Tinta» | `#5B3DF5` (degradado del ícono `#7C5CFF` → `#4527D6`) |
-| Acento «Lacre» | `#FF6B4A` |
-| Texto oscuro   | `#1E1B4B` |
-| Archivos       | `public/brand/logo.svg`, `public/brand/icon.svg`, `public/brand/icon-1024.png`, `build/icon.png` |
+| Desarrollo     | Claude y Codex por **Zegiru Labs** |
+| Color principal | Esmeralda `#008F55` y verde eléctrico `#00E878` |
+| Acento          | Lima `#C8FF00` |
+| Texto oscuro    | `#073B2A` |
+| Archivos        | `public/brand/icon.svg`, `public/brand/icon-1024.png`, `build/icon.png` |
 
-El ícono es un sobre sellado con lacre. Puede usar el logo para referirse al proyecto; si publica una
+El ícono representa la «M» de Misiva con una cinta luminosa. Puede usar el logo para referirse al proyecto; si publica una
 versión modificada, use un nombre y un logo distintos para evitar confusiones.
 
 ## Licencia
