@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>Desarrollado con Claude y Codex por Zegiru Labs.</strong>
+  <strong>Desarrollado por Zegiru Labs.</strong>
 </p>
 
 <p align="center">
