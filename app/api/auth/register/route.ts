@@ -2,16 +2,21 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { allowAuthAttempt, createSession, hashPassword, normalizeEmail, sessionCookie, trustedMutation } from "@/lib/server/auth";
 import { databaseEnabled, query } from "@/lib/server/db";
+import { goBackendEnabled, proxyToGoBackend } from "@/lib/server/go-backend";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Escriba al menos 2 caracteres.").max(80),
   email: z.email("Escriba un correo válido.").max(320),
+  company: z.string().trim().max(120).optional(),
   password: z.string().min(12, "Use al menos 12 caracteres.").max(128, "La contraseña es demasiado larga."),
 });
 
 export async function POST(request: Request) {
-  if (!databaseEnabled()) return Response.json({ error: "PostgreSQL no está configurado." }, { status: 503 });
   if (!trustedMutation(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  if (goBackendEnabled()) {
+    return proxyToGoBackend(request, "/api/v1/auth/register");
+  }
+  if (!databaseEnabled()) return Response.json({ error: "Configure GO_BACKEND_URL o DATABASE_URL para registrar cuentas." }, { status: 503 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos." }, { status: 400 });
   const email = normalizeEmail(parsed.data.email);

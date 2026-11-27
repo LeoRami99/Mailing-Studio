@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { allowAuthAttempt, clearAuthAttempts, createSession, normalizeEmail, sessionCookie, trustedMutation, verifyPassword } from "@/lib/server/auth";
 import { databaseEnabled, query } from "@/lib/server/db";
+import { goBackendEnabled, proxyToGoBackend } from "@/lib/server/go-backend";
 
 const schema = z.object({ email: z.email().max(320), password: z.string().min(1).max(128) });
 
 export async function POST(request: Request) {
-  if (!databaseEnabled()) return Response.json({ error: "PostgreSQL no está configurado." }, { status: 503 });
   if (!trustedMutation(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  if (goBackendEnabled()) {
+    return proxyToGoBackend(request, "/api/v1/auth/login");
+  }
+  if (!databaseEnabled()) return Response.json({ error: "Configure GO_BACKEND_URL o DATABASE_URL para iniciar sesión." }, { status: 503 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Correo o contraseña incorrectos." }, { status: 401 });
   const email = normalizeEmail(parsed.data.email);

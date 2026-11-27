@@ -14,6 +14,25 @@ services:
       timeout: 5s
       retries: 10
 
+  backend-go:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      GO_HOST: "0.0.0.0"
+      GO_PORT: "8080"
+      DB_DRIVER: "postgres"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-misiva}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-misiva}?sslmode=disable"
+      APP_ORIGIN: "${APP_ORIGIN:-}"
+      CORS_ALLOWED_ORIGINS: "${APP_ORIGIN:-http://localhost:3000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   misiva:
     build: .
     restart: unless-stopped
@@ -21,13 +40,13 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       MISIVA_SERVER_PROJECTS: "1"
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-misiva}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-misiva}"
+      GO_BACKEND_URL: "http://backend-go:8080"
       MISIVA_MCP_ALLOWED_ORIGINS: "${MISIVA_MCP_ALLOWED_ORIGINS:-}"
       APP_ORIGIN: "${APP_ORIGIN:-}"
     volumes:
       - misiva_data:/data
     depends_on:
-      postgres:
+      backend-go:
         condition: service_healthy
 
 volumes:

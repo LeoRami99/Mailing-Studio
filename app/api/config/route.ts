@@ -1,12 +1,16 @@
 import { connection } from "next/server";
+import { goBackendEnabled } from "@/lib/server/go-backend";
+import { serverProjectsEnabled } from "@/lib/server/project-store";
 
 export async function GET() {
-  // La misma imagen Docker puede promoverse entre entornos con configuración
-  // diferente. connection() evita que Cache Components congele process.env al compilar.
+  // connection() evita que Cache Components congele process.env al compilar.
   await connection();
+  const goActive = goBackendEnabled();
+  const pgActive = Boolean(process.env.DATABASE_URL);
   return Response.json({
-    projectStorage: process.env.MISIVA_SERVER_PROJECTS === "1" ? "server" : "browser",
-    authRequired: Boolean(process.env.DATABASE_URL),
-    mcpEnabled: Boolean(process.env.DATABASE_URL || process.env.MISIVA_MCP_TOKEN),
+    projectStorage: serverProjectsEnabled() ? "server" : "browser",
+    authRequired: goActive || pgActive,
+    authBackend: goActive ? "go" : pgActive ? "postgres" : "local",
+    mcpEnabled: goActive || pgActive || Boolean(process.env.MISIVA_MCP_TOKEN),
   }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -14,6 +14,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="Licencia MIT" src="https://img.shields.io/badge/licencia-MIT-5b3df5"></a>
   <img alt="Node.js 20.9+" src="https://img.shields.io/badge/node-%E2%89%A520.9-339933">
+  <img alt="Go 1.24+" src="https://img.shields.io/badge/Go-1.24+-00ADD8">
   <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000">
   <img alt="Electron 45" src="https://img.shields.io/badge/Electron-45-47848F">
   <img alt="Plataformas" src="https://img.shields.io/badge/escritorio-Linux%20%7C%20Windows%20%7C%20macOS-ff6b4a">
@@ -39,6 +40,7 @@
 - [Cómo se usa](#cómo-se-usa)
 - [Configuración](#configuración)
 - [Integración MCP para asistentes de IA](#integración-mcp-para-asistentes-de-ia)
+- [Documentación técnica detallada](#documentación-técnica-detallada)
 - [Arquitectura](#arquitectura)
 - [Solución de problemas](#solución-de-problemas)
 - [Contribuir](#contribuir)
@@ -49,8 +51,8 @@
 
 *Misiva* (del latín *missīva*, «carta que se envía») es un editor de correos HTML con arrastrar y soltar.
 Arma el correo con bloques, personalízalo con variables, revisa que sea compatible y exporta el HTML con
-la sintaxis exacta de tu plataforma de envío. Funciona en el navegador o como app de escritorio, sin
-cuentas ni servicios externos.
+la sintaxis exacta de tu plataforma de envío. Funciona en el navegador (con cuentas multiusuario sobre un
+backend rápido en **Go** con SQLite o PostgreSQL) o como app de escritorio sin servicios externos.
 
 ## Características
 
@@ -62,6 +64,12 @@ cuentas ni servicios externos.
 - Visibilidad: ocultar en móvil, mostrar solo en móvil o mostrar solo si una variable tiene valor.
 - Diseño global: ancho, fondos, tipografía y fuente web, colores para modo oscuro, UTM y CSS propio.
 - Plantillas de inicio: boletín, evento/webinar, promoción y notificación.
+
+**Autenticación y Backend en Go (`/backend`)**
+- Servicio independiente en **Go** (`net/http` + `CGO_ENABLED=0`) con soporte dual **SQLite WAL** (cero configuración en local) y **PostgreSQL** (producción/Docker).
+- Contraseñas protegidas con **Argon2id** en formato estándar PHC, sesiones `HttpOnly`, límite contra fuerza bruta y bitácora de auditoría.
+- Gestión de perfil, cambio de contraseña, cierre de sesiones activas en otros dispositivos y panel de administración de usuarios (`admin` / `member`).
+- Aislamiento estricto de proyectos e imágenes por cuenta, con control de concurrencia optimista.
 
 **Variables y plataformas**
 - Sintaxis única en el editor (`{{nombre}}`, `{{nombre|"amigo"}}`, `{{#if x}}…{{/if}}`) que se traduce al
@@ -86,64 +94,65 @@ cuentas ni servicios externos.
 - Importación híbrida: adapta títulos, textos, imágenes, botones, separadores y tablas de 2–4 columnas a
   bloques nativos; conserva automáticamente las secciones complejas como HTML y muestra un informe antes
   de crear el proyecto.
-- Guarda y abre proyectos `.json`; guardado automático en el navegador.
+- Guarda y abre proyectos `.json`; guardado automático en servidor o en el navegador.
 - Biblioteca de imágenes con subida por arrastre.
 - Vista previa en escritorio, tablet y móvil, con modo oscuro simulado e imágenes bloqueadas.
 
 ## Inicio rápido
 
-**Requisitos:** [Node.js](https://nodejs.org/) 20.9 o superior (recomendado 22 LTS; el repositorio
-incluye `.nvmrc`) y npm. Git es opcional.
+**Requisitos:** [Node.js](https://nodejs.org/) 20.9 o superior (recomendado 22 LTS) y [Go](https://go.dev/) 1.24+ (para el backend de cuentas y MCP; opcional si solo usa el editor local en navegador).
 
 ```bash
 git clone <url-del-repositorio> misiva
 cd misiva
-nvm use            # opcional, si usa nvm
 npm install
-npm run dev
+
+# Modo completo en paralelo (Backend Go con SQLite + Frontend Next.js + MCP):
+npm run dev:full
 ```
 
-Abra <http://localhost:3000>. La primera vez verá un boletín de ejemplo.
+Abra <http://localhost:3000>. Cree su primera cuenta (recibirá rol `admin` automáticamente) y empiece a diseñar o generar tokens MCP desde **Cuenta → Acceso MCP**.
 
-> Si solo quiere usar la app de escritorio, descargue el instalador de la sección **Releases** del
-> repositorio (cuando haya versiones publicadas).
+> Si desea ejecutar únicamente el editor local sin cuentas ni servidor Go, ejecute `npm run dev`.
 
 ## Ejecutar en desarrollo
 
 | Comando                | Qué hace                                                                          |
 | ---------------------- | --------------------------------------------------------------------------------- |
-| `npm run dev`          | Versión web con recarga en caliente en <http://localhost:3000>.                   |
+| `npm run dev:full`     | Levanta en paralelo el backend en Go (`:8080`, SQLite) y `next dev` (`:3000`).    |
+| `npm run dev`          | Solo frontend Next.js en <http://localhost:3000> (modo local si no hay backend).  |
+| `npm run go:dev`       | Ejecuta únicamente el backend en Go en `http://127.0.0.1:8080`.                   |
+| `npm run go:test`      | Ejecuta la suite de pruebas unitarias e integrales del backend en Go.             |
+| `npm run go:build`     | Compila el binario `backend/bin/misiva-backend`.                                  |
+| `npm run mcp:stdio`    | Inicia el servidor MCP de Misiva sobre transporte `stdio`.                        |
 | `npm run electron:dev` | App de escritorio sobre `next dev`. Reutiliza el servidor de `:3000` si ya corre. |
 | `npm run lint`         | ESLint.                                                                           |
-| `npx tsc --noEmit`     | Revisión de tipos.                                                                |
+| `npx tsc --noEmit`     | Revisión de tipos TypeScript.                                                     |
 
-En desarrollo, las imágenes subidas se guardan en `storage/uploads/` (ignorado por git).
+En desarrollo, las imágenes subidas se guardan en `storage/uploads/` y la base SQLite local en `storage/misiva.db` (ignorados por git).
 
 ## Compilar
 
-### Versión web
+### Servidor propio con Docker
+
+El despliegue con Docker Compose levanta tres contenedores coordinados: **PostgreSQL 17**, **Backend en Go (`backend-go`)** y **Next.js (`misiva`)**.
 
 ```bash
-npm run build      # compila
-npm start          # sirve en http://localhost:3000
+cp .env.example .env
+# Edite .env y defina POSTGRES_PASSWORD y APP_ORIGIN.
+docker compose up -d --build
 ```
 
-`next build` genera además un servidor autónomo en `.next/standalone` que no necesita `node_modules`.
-Para desplegarlo en un servidor propio:
+Misiva quedará disponible en <http://127.0.0.1:3000>. Al abrirlo por primera vez, cree la cuenta inicial (administrador) desde **Registrarse**. Coloque Caddy, Traefik o nginx delante con HTTPS.
+
+### Versión web manual
 
 ```bash
-npm run electron:build                      # build + copia de public/ y .next/static al standalone
-cd .next/standalone
-PORT=8080 HOSTNAME=0.0.0.0 MAILING_STORAGE_DIR=/var/lib/misiva node server.js
+npm run go:build     # compila backend/bin/misiva-backend
+npm run build        # compila Next.js (.next/standalone)
 ```
 
-Para una instalación multiusuario configure `DATABASE_URL`. Misiva habilita entonces registro, inicio de
-sesión, proyectos aislados por cuenta y tokens MCP revocables. Publique siempre detrás de HTTPS.
-
-Para que los destinatarios vean las imágenes subidas, el servidor debe ser accesible desde internet y
-debe poner su URL en **Diseño → Compatibilidad y exportación → URL pública de las imágenes**. En
-plataformas sin disco persistente (p. ej. Vercel), reemplace `app/api/upload/route.ts` por un
-almacenamiento externo (S3, R2, Cloudinary…).
+Ejecute `backend/bin/misiva-backend` (con SQLite o `DB_DRIVER=postgres DATABASE_URL=...`) y arranque Next.js definiendo `GO_BACKEND_URL=http://127.0.0.1:8080` y `MISIVA_SERVER_PROJECTS=1`.
 
 ### App de escritorio
 
@@ -153,51 +162,11 @@ almacenamiento externo (S3, R2, Cloudinary…).
 | `npm run dist:linux`     | `dist-electron/Misiva-<versión>-linux-x86_64.AppImage`              | Linux                    |
 | `npm run dist:win`       | `dist-electron/Misiva-<versión>-win-x64.exe` (instalador NSIS)      | Windows (o Linux + Wine) |
 | `npm run dist:mac`       | `dist-electron/Misiva-<versión>-mac-<arch>.dmg`                     | macOS                    |
-| `npx electron-builder --linux dir` | Carpeta sin empaquetar en `dist-electron/linux-unpacked/` (útil para probar) | Linux |
-
-Notas:
-
-- Los instaladores salen **sin firmar**. Windows SmartScreen y macOS Gatekeeper mostrarán una
-  advertencia. Para firmar, configure los certificados según la
-  [documentación de electron-builder](https://www.electron.build/code-signing).
-- Para generar también un paquete `.deb`, añada `"deb"` a `build.linux.target` en `package.json` y un
-  correo en `author` (electron-builder lo exige como mantenedor).
-- El ícono de la app está en `build/icon.png` (1024 × 1024).
-
-### Servidor propio con Docker
-
-El modo self-hosted usa PostgreSQL para usuarios, sesiones, tokens MCP y proyectos. Las imágenes se guardan
-en un volumen persistente y su propiedad queda asociada a la cuenta en PostgreSQL.
-
-```bash
-cp .env.example .env
-# Edite .env y defina POSTGRES_PASSWORD y APP_ORIGIN.
-docker compose up -d --build
-```
-
-Misiva quedará en <http://127.0.0.1:3000>. El `compose.yaml` escucha solamente en loopback a propósito.
-Al abrirlo por primera vez, cree la cuenta inicial desde **Registrarse**. Para publicarlo, coloque Caddy,
-Traefik o nginx delante y habilite HTTPS. No exponga PostgreSQL ni el puerto 3000 directamente a internet.
-
-Las imágenes viven en `misiva_data`; usuarios, sesiones, tokens y proyectos viven en `postgres_data`.
-Para detener sin borrar datos use `docker compose down`; no use `docker compose down -v` salvo que realmente
-quiera eliminar toda la instalación.
 
 ### Publicar una versión con GitHub Actions
 
-El repositorio incluye dos flujos en `.github/workflows/`:
-
 - **CI** (`ci.yml`): en cada *push* a `main` y en cada *pull request* ejecuta lint, revisión de tipos y build.
-- **Release** (`release.yml`): al subir una etiqueta `v*` compila los instaladores de Linux, Windows y
-  macOS en sus propios sistemas y los adjunta a un **borrador** de *release*.
-
-```bash
-# 1. Actualice "version" en package.json y CHANGELOG.md
-git commit -am "Versión 0.2.0"
-git tag v0.2.0
-git push origin main --tags
-# 2. En GitHub → Releases, revise el borrador y publíquelo
-```
+- **Release** (`release.yml`): al subir una etiqueta `v*` compila los instaladores de Linux, Windows y macOS.
 
 ## Cómo se usa
 
@@ -219,134 +188,87 @@ git push origin main --tags
 | `{{@preferences}}`              | URL de preferencias                            |
 | `{{@webversion}}`               | URL de la versión web                          |
 
-Ejemplo de exportación de `Hola {{nombre|"amigo"}}`:
-
-| Plataforma   | Resultado                                                    |
-| ------------ | ------------------------------------------------------------ |
-| SendGrid     | `Hola {{#if nombre}}{{nombre}}{{else}}amigo{{/if}}`          |
-| Mailchimp    | `Hola *\|FNAME\|*`                                           |
-| Brevo        | `Hola {{ contact.FIRSTNAME \| default : "amigo" }}`          |
-| HubSpot      | `Hola {{ contact.firstname\|default("amigo") }}`             |
-| SFMC         | `Hola %%=IIF(EMPTY(AttributeValue("nombre")),"amigo",…)=%%`  |
-
-> La sintaxis de cada plataforma cambia con el tiempo. Antes de un envío masivo, verifique con su
-> documentación (el diálogo *Exportar* la enlaza) y haga un envío de prueba a Gmail y Outlook.
-
-### Atajos de teclado
-
-| Atajo                         | Acción                        |
-| ----------------------------- | ----------------------------- |
-| `Ctrl/⌘ + Z`                  | Deshacer                      |
-| `Ctrl/⌘ + Shift + Z`, `Ctrl + Y` | Rehacer                    |
-| `Ctrl/⌘ + D`                  | Duplicar el bloque seleccionado |
-| `Supr` / `Retroceso`          | Eliminar el bloque seleccionado |
-| `Esc`                         | Deseleccionar                 |
-
 ## Configuración
 
-Variables de entorno:
+Variables de entorno principales:
 
 | Variable              | Uso                                                                  | Por defecto            |
 | --------------------- | -------------------------------------------------------------------- | ---------------------- |
+| `GO_BACKEND_URL`      | URL del backend en Go para autenticación, usuarios, tokens y proyectos.| Desactivado          |
+| `GO_HOST`, `GO_PORT`  | Interfaz y puerto donde escucha el backend en Go.                    | `127.0.0.1`, `8080`    |
+| `DB_DRIVER`           | Motor SQL del backend Go (`sqlite` o `postgres`).                    | `sqlite`               |
+| `SQLITE_PATH`         | Ruta del archivo SQLite cuando `DB_DRIVER=sqlite`.                   | `./storage/misiva.db`  |
 | `MAILING_STORAGE_DIR` | Carpeta donde se guardan las imágenes subidas (`<dir>/uploads`).     | `./storage`            |
 | `PORT`, `HOSTNAME`    | Puerto e interfaz del servidor autónomo (`server.js`).               | `3000`, `0.0.0.0`      |
-| `MAILING_DEV_URL`     | URL de `next dev` que carga `npm run electron:dev`.                  | `http://localhost:3000`|
-| `MISIVA_SERVER_PROJECTS` | `1` guarda proyectos en el servidor en vez de `localStorage`.     | Desactivado            |
-| `DATABASE_URL`        | Conexión PostgreSQL; activa cuentas, sesiones y proyectos por usuario.| Desactivado           |
-| `DATABASE_SSL`        | `1` activa TLS para una base PostgreSQL externa.                    | `0`                    |
-| `APP_ORIGIN`          | Origen público autorizado para operaciones de escritura.            | Host de la solicitud   |
-| `MISIVA_MCP_TOKEN`    | Token heredado sólo para instalaciones locales sin PostgreSQL.       | Desactivado            |
-| `MISIVA_MCP_ALLOWED_ORIGINS` | Orígenes web adicionales permitidos, separados por comas.    | Ninguno                |
-
-Dónde guarda los datos la app de escritorio:
-
-| Sistema | Carpeta                                     |
-| ------- | ------------------------------------------- |
-| Linux   | `~/.config/Misiva/`                         |
-| Windows | `%APPDATA%\Misiva\`                         |
-| macOS   | `~/Library/Application Support/Misiva/`     |
-
-Dentro: `storage/uploads/` (imágenes), `logs/server.log` (registro del servidor interno) y los
-proyectos (almacenamiento local del navegador interno). El menú *Archivo* abre estas carpetas.
-
-Los proyectos se guardan en el navegador (web) o en la app (escritorio). Para moverlos entre equipos,
-use **💾 Proyecto** para descargar el `.json` y **⬆ Cargar** para abrirlo.
-
-Con `DATABASE_URL` y `MISIVA_SERVER_PROJECTS=1`, los proyectos se guardan en PostgreSQL y quedan aislados por
-cuenta. Sin PostgreSQL, el modo local/Electron mantiene el almacenamiento histórico en el navegador o en JSON.
+| `MISIVA_SERVER_PROJECTS` | `1` guarda proyectos en el servidor (activo automáticamente con Go). | Automático con Go   |
+| `DATABASE_URL`        | Conexión PostgreSQL para producción/Docker.                          | Desactivado            |
+| `APP_ORIGIN`          | Origen público autorizado para operaciones de escritura y CORS.      | Host de la solicitud   |
+| `MISIVA_MCP_TOKEN`    | Token MCP para transporte `stdio` o modo local sin base de datos.    | Desactivado            |
+| `MISIVA_MCP_ALLOWED_ORIGINS` | Orígenes web adicionales permitidos en `/mcp`.               | Ninguno                |
 
 ## Integración MCP para asistentes de IA
 
-Con PostgreSQL configurado, Misiva publica un servidor MCP remoto mediante Streamable HTTP en:
+Misiva publica un servidor **MCP v0.2** tanto por **Streamable HTTP** (`/mcp`) como por **STDIO** (`npm run mcp:stdio`), con **18 herramientas**, **5 recursos `misiva://`** y **3 prompts guiados**.
 
-```text
-https://su-dominio.example/mcp
+En Misiva abra el botón de cuenta → **Acceso MCP**, elija los permisos (`projects:read`, `projects:write`, `projects:delete`, `assets:read`), cree un token y copie la configuración JSON lista para su cliente:
+
+```json
+{
+  "mcpServers": {
+    "misiva": {
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer <TOKEN_MCP_PERSONAL>"
+      }
+    }
+  }
+}
 ```
 
-En Misiva abra el botón de cuenta, entre en **Cuenta y acceso MCP**, cree un token para cada cliente y envíelo
-en el encabezado:
+Capacidades destacadas del MCP:
+- **Catálogos y descubrimiento**: `list_templates`, `list_platforms`, `list_block_types`, `list_assets`.
+- **Proyectos**: `list_projects`, `get_project` (completo o resumido), `create_mailing`, `duplicate_project`, `delete_project`, `save_project`.
+- **Edición granular sin reenviar todo el JSON**: `update_settings`, `add_block`, `update_block`, `move_block`, `remove_block`, `set_variables`, `import_html_mailing`.
+- **Renderizado y auditoría**: `render_project` (modos `export` y `preview` con métricas de peso Gmail <102 KB y validación de compatibilidad).
 
-```text
-Authorization: Bearer <TOKEN_MCP_PERSONAL>
-```
+Consulte la referencia completa en **[docs/MCP.md](docs/MCP.md)**.
 
-Herramientas disponibles:
+## Documentación técnica detallada
 
-| Herramienta | Acción |
-| --- | --- |
-| `list_projects` | Lista mailings y sus asuntos. |
-| `get_project` | Lee el documento editable completo. |
-| `create_mailing` | Crea un mailing desde una plantilla profesional. |
-| `save_project` | Guarda cambios hechos por la IA. |
-| `render_project` | Produce HTML/texto plano y ejecuta la revisión de compatibilidad. |
-
-Cada token accede únicamente a los proyectos de su propietario y puede revocarse desde la plataforma. El MCP
-no envía campañas ni dispone de una herramienta para borrar proyectos. Su alcance se limita a diseñar,
-editar, validar y exportar. Para un buen resultado, pida al asistente que termine siempre con
-`render_project` y que corrija todos los errores antes de entregar el HTML.
+- **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)** — Diagnóstico del proyecto, diagrama de arquitectura híbrida y flujo entre Next.js, Go, Electron y MCP.
+- **[docs/BACKEND_GO.md](docs/BACKEND_GO.md)** — Referencia completa del backend en Go: seguridad Argon2id, esquema SQLite/PostgreSQL, bitácora de auditoría y todos los endpoints `/api/v1/*`.
+- **[docs/MCP.md](docs/MCP.md)** — Guía de integración MCP (Streamable HTTP y `stdio`), scopes, las 18 herramientas, recursos y prompts.
 
 ## Arquitectura
 
-```
+```text
+backend/                   Backend independiente en Go (:8080)
+  cmd/server/main.go       Arranque HTTP y apagado ordenado
+  internal/config/         Configuración por entorno (SQLite / PostgreSQL)
+  internal/security/       Argon2id PHC, SHA-256 y tokens criptográficos
+  internal/store/          Persistencia SQL unificada, rate limit y auditoría
+  internal/server/         Endpoints REST /api/v1/*, middlewares y pruebas E2E
 app/
   page.tsx                 Puerta de sesión y editor
-  api/auth/                Registro, login, logout, sesión y tokens MCP
-  api/upload/route.ts      Subir, listar y borrar imágenes
-  media/[file]/route.ts    Servir imágenes subidas
+  mcp/route.ts             Servidor MCP Streamable HTTP con CORS y scopes
+  api/                     Proxy/endpoints de sesión, perfil, usuarios, proyectos e imágenes
 components/editor/         Interfaz: lienzo, paneles, inspector, modales, editor de código
-components/auth/           Login, registro y administración de acceso MCP
-lib/email/
-  types.ts                 Modelo del documento (bloques, ajustes, variables)
-  render.ts                Documento → HTML compatible con clientes de correo
-  tokens.ts                Variables: vista previa y traducción por plataforma
-  platforms.ts             Sintaxis de cada plataforma de envío
-  validate.ts              Revisión de compatibilidad y entregabilidad
-  plaintext.ts             Versión en texto plano
-  defaults.ts              Bloques por defecto y plantillas
-  store.ts                 Estado con historial (deshacer/rehacer)
-lib/server/                PostgreSQL, autenticación y persistencia por usuario
-electron/main.cjs          Proceso principal de Electron
-scripts/                   Preparación del servidor autónomo y empaquetado
-public/brand/              Logo e íconos
+components/auth/           Login, registro, gestión de perfil/sesiones, admin y acceso MCP
+lib/email/                 Modelo EmailDoc, compilador HTML/VML, plataformas y validador
+lib/mcp/server.ts          Definición de las 18 herramientas, 5 recursos y 3 prompts MCP
+lib/server/go-backend.ts   Puente HTTP Next.js <-> Go Backend
+scripts/                   Arranque en paralelo (dev-parallel.mjs), MCP stdio y Electron
 ```
-
-**App de escritorio:** `next build` produce un servidor autónomo (`output: "standalone"`).
-`scripts/prepare-standalone.mjs` le agrega `public/` y `.next/static`, y `scripts/after-pack.cjs` lo copia
-a `resources/server` dentro del paquete. Al abrir la app, `electron/main.cjs` arranca ese servidor en un
-proceso utilitario, en un puerto libre de `127.0.0.1`, y la ventana lo carga desde el esquema fijo
-`app://misiva`. Como el origen no cambia, los proyectos guardados se conservan aunque cambie el puerto.
 
 ## Solución de problemas
 
 | Problema | Solución |
 | --- | --- |
+| «No se pudo conectar con el backend de autenticación en Go» | Ejecute `npm run dev:full` o levante Go con `npm run go:dev` cuando `GO_BACKEND_URL` esté configurada. |
 | `npm run dev` falla con errores de sintaxis o «Node.js version» | Use Node 20.9+ (`node --version`; con nvm: `nvm use`). |
 | «Another next dev server is already running» | Ya hay un `next dev` abierto; use ese o deténgalo. `electron:dev` lo reutiliza. |
-| Los cambios de CSS no se reflejan en `next dev` | Detenga el servidor, borre la caché `.next/dev` y vuelva a iniciarlo. |
 | Las imágenes no se ven en el correo recibido | Las rutas `/media/…` deben ser públicas: configure la *URL pública* o use URLs de un CDN. |
-| El AppImage no abre en Linux | Instale FUSE 2 (`sudo apt install libfuse2`) o ejecútelo con `--appimage-extract-and-run`. |
 | macOS dice que la app «está dañada» | Es por no estar firmada: `xattr -cr /Applications/Misiva.app`. |
-| La app de escritorio no inicia | Revise `logs/server.log` en la carpeta de datos. |
 
 ## Contribuir
 
@@ -364,9 +286,6 @@ Los cambios por versión están en [CHANGELOG.md](CHANGELOG.md).
 | Acento          | Lima `#C8FF00` |
 | Texto oscuro    | `#073B2A` |
 | Archivos        | `public/brand/icon.svg`, `public/brand/icon-1024.png`, `build/icon.png` |
-
-El ícono representa la «M» de Misiva con una cinta luminosa. Puede usar el logo para referirse al proyecto; si publica una
-versión modificada, use un nombre y un logo distintos para evitar confusiones.
 
 ## Licencia
 

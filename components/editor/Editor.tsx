@@ -39,7 +39,17 @@ function loadProjects(): Project[] {
   }
 }
 
-export default function Editor({ user, onSignedOut }: { user: AuthUser | null; onSignedOut: () => void }) {
+export default function Editor({
+  user,
+  authBackend,
+  onUserUpdated,
+  onSignedOut,
+}: {
+  user: AuthUser | null;
+  authBackend?: string;
+  onUserUpdated?: (user: AuthUser) => void;
+  onSignedOut: () => void;
+}) {
   const [ready, setReady] = useState(false);
   const [serverStorage, setServerStorage] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -106,7 +116,7 @@ export default function Editor({ user, onSignedOut }: { user: AuthUser | null; o
       firstSave.current = false;
       return;
     }
-     
+
     setSaved("saving");
     const t = setTimeout(() => {
       setProjects((prev) => {
@@ -304,7 +314,15 @@ export default function Editor({ user, onSignedOut }: { user: AuthUser | null; o
       {modal === "preview" && <PreviewModal doc={doc} onClose={() => setModal(null)} />}
       {modal === "export" && <ExportModal doc={doc} name={name} onClose={() => setModal(null)} />}
       {modal === "import" && <ImportModal onClose={() => setModal(null)} onImport={(d, n) => newProject(d, n ?? "Correo importado")} />}
-      {modal === "account" && user && <AccountModal user={user} onClose={() => setModal(null)} onSignedOut={onSignedOut} />}
+      {modal === "account" && user && (
+        <AccountModal
+          user={user}
+          authBackend={authBackend}
+          onUserUpdated={onUserUpdated}
+          onClose={() => setModal(null)}
+          onSignedOut={onSignedOut}
+        />
+      )}
       {modal === "projects" && (
         <ProjectsModal
           projects={projects}

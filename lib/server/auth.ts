@@ -3,17 +3,38 @@ import "server-only";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { hash as argonHash, verify as argonVerify } from "@node-rs/argon2";
 import { databaseEnabled, query, transaction } from "./db";
+import { getGoRequestUser, goBackendEnabled } from "./go-backend";
 
 export const SESSION_COOKIE = "misiva_session";
 const SESSION_DAYS = 30;
 const PASSWORD_POLICY = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1, outputLen: 32 } as const;
 
-export type SafeUser = { id: string; name: string; email: string; role: "member" | "admin" };
-export type ApiTokenInfo = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null };
+export type SafeUser = {
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+  role: "member" | "admin";
+  active?: boolean;
+};
+
+export type ApiTokenInfo = {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes?: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt?: string | null;
+};
 
 const localUser: SafeUser = { id: "local", name: "Usuario local", email: "local@misiva", role: "admin" };
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const randomToken = (bytes = 32) => randomBytes(bytes).toString("base64url");
+
+export function authRequired() {
+  return goBackendEnabled() || databaseEnabled();
+}
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -68,7 +89,10 @@ export async function userFromSessionToken(token: string | undefined): Promise<S
   return { id: row.id, name: row.name, email: row.email, role: row.role };
 }
 
-export async function getRequestUser(request: Request) {
+export async function getRequestUser(request: Request): Promise<SafeUser | null> {
+  if (goBackendEnabled()) {
+    return getGoRequestUser(request);
+  }
   return userFromSessionToken(cookieValue(request, SESSION_COOKIE));
 }
 
@@ -100,20 +124,34 @@ export function trustedMutation(request: Request) {
   return !forwardedHost || new URL(origin).host === forwardedHost;
 }
 
-export async function createApiToken(userId: string, name: string) {
+export async function createApiToken(
+  userId: string,
+  name: string,
+  scopes: string[] = ["projects:read", "projects:write", "assets:read"],
+) {
   const raw = `misiva_mcp_${randomToken(36)}`;
   const prefix = raw.slice(0, 22);
   const id = randomUUID();
-  await query("INSERT INTO api_tokens (id, user_id, name, token_prefix, token_hash) VALUES ($1, $2, $3, $4, $5)", [id, userId, name.trim(), prefix, digest(raw)]);
-  return { id, token: raw, prefix };
+  await query(
+    "INSERT INTO api_tokens (id, user_id, name, token_prefix, token_hash, scopes) VALUES ($1, $2, $3, $4, $5, $6)",
+    [id, userId, name.trim(), prefix, digest(raw), scopes],
+  );
+  return { id, token: raw, prefix, scopes };
 }
 
 export async function listApiTokens(userId: string): Promise<ApiTokenInfo[]> {
-  const result = await query<{ id: string; name: string; token_prefix: string; created_at: Date; last_used_at: Date | null }>(`
-    SELECT id, name, token_prefix, created_at, last_used_at FROM api_tokens
+  const result = await query<{ id: string; name: string; token_prefix: string; scopes: string[]; created_at: Date; last_used_at: Date | null }>(`
+    SELECT id, name, token_prefix, scopes, created_at, last_used_at FROM api_tokens
     WHERE user_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC
   `, [userId]);
-  return result.rows.map((row) => ({ id: row.id, name: row.name, prefix: row.token_prefix, createdAt: row.created_at.toISOString(), lastUsedAt: row.last_used_at?.toISOString() ?? null }));
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    prefix: row.token_prefix,
+    scopes: row.scopes ?? ["projects:read", "projects:write"],
+    createdAt: row.created_at.toISOString(),
+    lastUsedAt: row.last_used_at?.toISOString() ?? null,
+  }));
 }
 
 export async function revokeApiToken(userId: string, id: string) {
@@ -121,17 +159,20 @@ export async function revokeApiToken(userId: string, id: string) {
   return result.rowCount === 1;
 }
 
-export async function userFromApiToken(token: string): Promise<SafeUser | null> {
+export async function userFromApiToken(token: string): Promise<{ user: SafeUser; scopes: string[] } | null> {
   if (!databaseEnabled()) return null;
-  const result = await query<SafeUser & { token_id: string }>(`
-    SELECT u.id, u.name, u.email, u.role, t.id AS token_id
+  const result = await query<SafeUser & { token_id: string; scopes: string[] }>(`
+    SELECT u.id, u.name, u.email, u.role, t.id AS token_id, t.scopes
     FROM api_tokens t JOIN users u ON u.id = t.user_id
     WHERE t.token_hash = $1 AND t.revoked_at IS NULL
   `, [digest(token)]);
   const row = result.rows[0];
   if (!row) return null;
   void query("UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < NOW() - INTERVAL '5 minutes')", [row.token_id]);
-  return { id: row.id, name: row.name, email: row.email, role: row.role };
+  return {
+    user: { id: row.id, name: row.name, email: row.email, role: row.role },
+    scopes: row.scopes ?? ["projects:read", "projects:write"],
+  };
 }
 
 export function sameSecret(received: string, expected: string) {

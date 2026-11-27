@@ -1,7 +1,7 @@
 {
   "name": "misiva",
   "productName": "Misiva",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Editor visual de código abierto para crear correos HTML compatibles con Gmail, Outlook, Apple Mail y cualquier plataforma de envío.",
   "keywords": [
     "email",
@@ -13,7 +13,9 @@
     "outlook",
     "gmail",
     "electron",
-    "nextjs"
+    "nextjs",
+    "golang",
+    "mcp"
   ],
   "license": "MIT",
   "author": "Zegiru Labs",
@@ -24,6 +26,11 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:full": "node scripts/dev-parallel.mjs",
+    "go:dev": "go -C backend run ./cmd/server",
+    "go:build": "go -C backend build -o bin/misiva-backend ./cmd/server",
+    "go:test": "go -C backend test -v ./...",
+    "mcp:stdio": "node scripts/mcp-stdio.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -1,4 +1,5 @@
 import { deleteSession, expiredSessionCookie, getRequestUser, SESSION_COOKIE, trustedMutation } from "@/lib/server/auth";
+import { goBackendEnabled, proxyToGoBackend } from "@/lib/server/go-backend";
 
 function cookieValue(request: Request) {
   const cookie = request.headers.get("cookie") ?? "";
@@ -7,6 +8,9 @@ function cookieValue(request: Request) {
 
 export async function POST(request: Request) {
   if (!trustedMutation(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  if (goBackendEnabled()) {
+    return proxyToGoBackend(request, "/api/v1/auth/logout");
+  }
   await getRequestUser(request);
   await deleteSession(cookieValue(request));
   return Response.json({ ok: true }, { headers: { "Set-Cookie": expiredSessionCookie(request), "Cache-Control": "no-store" } });
